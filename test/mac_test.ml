@@ -64,13 +64,13 @@ let main () =
     let poly_app = [ sum ] in
     RecFoo1 (RecFoo2 (poly_app, RecFoo1 RecNone))
   in
-  let x = Array.create 10 el in
+  let x = Array.make 10 el in
 
   let n = 100_000 in
 
   (* Write n times *)
   let t1 = Unix.gettimeofday () in
-  for _i = 1 to n do
+  for _ = 1 to n do
     ignore (bin_write_els buf ~pos:0 x)
   done;
   let t2 = Unix.gettimeofday () in
@@ -78,7 +78,7 @@ let main () =
 
   (* Read n times *)
   let t1 = Unix.gettimeofday () in
-  for _i = 1 to n do
+  for _ = 1 to n do
     let pos_ref = ref 0 in
     ignore (bin_read_els buf ~pos_ref)
   done;

@@ -57,11 +57,7 @@ end
 
 let bigstring_to_string bigstring =
   let len = Bigarray.Array1.dim bigstring in
-  let s = String.create len in
-  for i = 0 to len - 1 do
-    s.[i] <- bigstring.{i}
-  done;
-  s
+  String.init len (fun i -> bigstring.{i})
 
 let test =
   let open OUnit in

@@ -125,11 +125,7 @@ let check_all extra_buf_size tp_name read write args =
       check_all_args tp_name read write buf args
 
 let random_string n =
-  let str = String.create n in
-  for i = 0 to n - 1 do
-    str.[i] <- Char.chr (Random.int 256);
-  done;
-  str
+  String.init n (fun _ -> Char.chr (Random.int 256))
 
 let mk_int_test ~n ~len = n, Printf.sprintf "%x" n, len
 let mk_nat0_test ~n ~len = Nat0.of_int n, Printf.sprintf "%x" n, len
@@ -967,7 +963,7 @@ module Common = struct
               let poly_app = [ sum ] in
               RecFoo1 (RecFoo2 (poly_app, RecFoo1 RecNone))
             in
-            let els = Array.create 10 el in
+            let els = Array.make 10 el in
             let buf = bin_dump ~header:true bin_els.writer els in
 
             let pos_ref = ref 0 in

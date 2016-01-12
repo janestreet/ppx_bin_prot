@@ -17,7 +17,6 @@ module Sig = struct
     let mk_sig ~loc:_ ~path:_ (_rf, tds) =
       List.map tds ~f:(fun td -> List.map combinators ~f:(fun mk -> mk td))
       |> List.flatten
-      |> Type_conv.Generator_result.make_at_the_end
     in
     Type_conv.Generator.make Type_conv.Args.empty mk_sig
 
@@ -686,7 +685,6 @@ module Generate_bin_write = struct
     :: [ pstr_value ~loc rec_flag write_bindings
        ; pstr_value ~loc Nonrecursive writer_bindings
        ]
-    |> Type_conv.Generator_result.make_just_after
   ;;
 
   let gen = Type_conv.Generator.make Type_conv.Args.empty bin_write
@@ -1195,7 +1193,6 @@ module Generate_bin_read = struct
         List.map      read_bindings ~f:cnv
     in
     defs @ [ pstr_value ~loc Nonrecursive reader_bindings ]
-    |> Type_conv.Generator_result.make_just_after
 
   let gen = Type_conv.Generator.make Type_conv.Args.empty bin_read
 
@@ -1265,7 +1262,6 @@ module Generate_tp_class = struct
   let bin_tp_class ~loc ~path:_ (_rec_flag, tds) =
     let bindings = List.map tds ~f:bin_tp_class_td in
     [ pstr_value ~loc Nonrecursive bindings ]
-    |> Type_conv.Generator_result.make_just_after
 
   (* Add code generator to the set of known generators *)
   let gen = Type_conv.Generator.make Type_conv.Args.empty bin_tp_class
