@@ -6,8 +6,4 @@ let sections =
     ],
     [ ("META", None)
     ])
-  ; ("libexec",
-    [ ("built_exec_ppx", Some "ppx")
-    ],
-    [])
   ]

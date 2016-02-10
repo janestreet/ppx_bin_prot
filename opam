@@ -15,7 +15,7 @@ depends: [
   "ocamlfind"  {build & >= "1.3.2"}
   "bin_prot"
   "ppx_core"
-  "ppx_tools"
+  "ppx_tools"  {>= "0.99.3"}
   "ppx_type_conv"
 ]
 available: [ ocaml-version >= "4.02.3" ]
