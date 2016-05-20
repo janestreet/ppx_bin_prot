@@ -1,3 +1,7 @@
+## 113.43.00
+
+- use the new context-free API
+
 ## 113.24.01
 
 - Fix the META. ppx\_bin\_prot was not previously treated as a
