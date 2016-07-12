@@ -1,4 +1,4 @@
-(** Pa_bin_prot: Preprocessing Module for a Type Safe Binary Protocol *)
+(** Ppx_bin_prot: Preprocessing Module for a Type Safe Binary Protocol *)
 
 open StdLabels
 open Ppx_type_conv.Std
@@ -37,7 +37,7 @@ module Sig = struct
         ~init:result_type
         ~f:(fun (tp, _variance) acc ->
           let loc = tp.ptyp_loc in
-          ptyp_arrow ~loc "" (wrap_type ~loc tp) acc)
+          ptyp_arrow ~loc Nolabel (wrap_type ~loc tp) acc)
     in
     psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[])
 
@@ -66,13 +66,22 @@ end
    | Utility functions                                               |
    +-----------------------------------------------------------------+ *)
 
+let inline_records_are_unsupported ~loc =
+  Location.raise_errorf ~loc "ppx_bin_prot: inline records are not supported yet"
+;;
+
 let atoms_in_row_fields row_fields =
   List.exists row_fields ~f:(function
     | Rtag (_, _, is_constant, _) -> is_constant
     | Rinherit _ -> false)
 ;;
 
-let atoms_in_variant cds = List.exists cds ~f:(fun cds -> cds.pcd_args = [])
+let atoms_in_variant cds =
+  List.exists cds ~f:(fun cds ->
+    match cds.pcd_args with
+    | Pcstr_tuple [] -> true
+    | Pcstr_tuple _ -> false
+    | Pcstr_record _ -> inline_records_are_unsupported ~loc:cds.pcd_loc)
 
 let let_ins loc bindings expr =
   List.fold_right bindings ~init:expr ~f:(fun binding expr ->
@@ -327,8 +336,8 @@ module Generate_bin_size = struct
            Location.raise_errorf ~loc:ty.ptyp_loc
              "bin_size_sum: GADTs are not supported by bin_prot");
         match cd.pcd_args with
-        | [] -> acc
-        | args ->
+        | Pcstr_tuple [] -> acc
+        | Pcstr_tuple args ->
           let get_tp tp = tp in
           let mk_patt loc v_name _ = pvar ~loc v_name in
           let patts, size_args =
@@ -344,7 +353,8 @@ module Generate_bin_size = struct
               let size = [%e size_tag] in
               [%e size_args]
             ]
-          :: acc)
+          :: acc
+        | Pcstr_record _ -> inline_records_are_unsupported ~loc)
     in
     let matchings =
       if atoms_in_variant alts then
@@ -585,13 +595,13 @@ module Generate_bin_write = struct
            Location.raise_errorf ~loc:ty.ptyp_loc
              "bin_write_sum: GADTs are not supported by bin_prot");
         match cd.pcd_args with
-        | [] ->
+        | Pcstr_tuple [] ->
           let loc = cd.pcd_loc in
           case
             ~lhs:(pconstruct cd None)
             ~guard:None
             ~rhs:(eapply ~loc write_tag [eint ~loc i])
-        | args ->
+        | Pcstr_tuple args ->
           let get_tp tp = tp in
           let mk_patt loc v_name _ = pvar ~loc v_name in
           let patts, write_args =
@@ -606,7 +616,8 @@ module Generate_bin_write = struct
             ~rhs:[%expr
               let pos = [%e write_tag] [%e eint ~loc i] in
               [%e write_args]
-            ])
+            ]
+        | Pcstr_record _ -> inline_records_are_unsupported ~loc)
     in
     `Match matchings
 
@@ -934,13 +945,14 @@ module Generate_bin_read = struct
          Location.raise_errorf ~loc:cd.pcd_loc
            "bin_read_sum: GADTs are not supported by bin_prot");
       match cd.pcd_args with
-      | [] ->
+      | Pcstr_tuple [] ->
         let loc = cd.pcd_loc in
         case ~lhs:(pint ~loc mi) ~guard:None ~rhs:(econstruct cd None)
-      | args ->
+      | Pcstr_tuple args ->
         let bindings, args_expr = handle_arg_tp loc full_type_name args in
         let rhs = let_ins loc bindings (econstruct cd (Some args_expr)) in
         case ~lhs:(pint ~loc mi) ~guard:None ~rhs
+      | Pcstr_record _ -> inline_records_are_unsupported ~loc
     in
     let mcs = List.mapi alts ~f:map in
     let n_alts = List.length alts in
