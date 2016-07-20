@@ -66,10 +66,6 @@ end
    | Utility functions                                               |
    +-----------------------------------------------------------------+ *)
 
-let inline_records_are_unsupported ~loc =
-  Location.raise_errorf ~loc "ppx_bin_prot: inline records are not supported yet"
-;;
-
 let atoms_in_row_fields row_fields =
   List.exists row_fields ~f:(function
     | Rtag (_, _, is_constant, _) -> is_constant
@@ -81,7 +77,7 @@ let atoms_in_variant cds =
     match cds.pcd_args with
     | Pcstr_tuple [] -> true
     | Pcstr_tuple _ -> false
-    | Pcstr_record _ -> inline_records_are_unsupported ~loc:cds.pcd_loc)
+    | Pcstr_record _ -> false)
 
 let let_ins loc bindings expr =
   List.fold_right bindings ~init:expr ~f:(fun binding expr ->
@@ -354,7 +350,24 @@ module Generate_bin_size = struct
               [%e size_args]
             ]
           :: acc
-        | Pcstr_record _ -> inline_records_are_unsupported ~loc)
+        | Pcstr_record fields ->
+          let cnv_patts lbls = ppat_record ~loc lbls Closed in
+          let get_tp ld = ld.pld_type in
+          let mk_patt loc v_name ld =
+            Located.map lident ld.pld_name, pvar ~loc v_name
+          in
+          let patts, size_args =
+            bin_size_args full_type_name loc get_tp mk_patt fields
+          in
+          case
+            ~lhs:(pconstruct cd (Some (cnv_patts patts)))
+            ~guard:None
+            ~rhs:[%expr
+              let size = [%e size_tag] in
+              [%e size_args]
+            ]
+          :: acc
+      )
     in
     let matchings =
       if atoms_in_variant alts then
@@ -617,7 +630,22 @@ module Generate_bin_write = struct
               let pos = [%e write_tag] [%e eint ~loc i] in
               [%e write_args]
             ]
-        | Pcstr_record _ -> inline_records_are_unsupported ~loc)
+        | Pcstr_record fields ->
+          let cnv_patts lbls = ppat_record ~loc lbls Closed in
+          let get_tp ld = ld.pld_type in
+          let mk_patt loc v_name ld =
+            Located.map lident ld.pld_name, pvar ~loc v_name
+          in
+          let patts, expr =
+            bin_write_args full_type_name loc get_tp mk_patt fields in
+          case
+            ~lhs:(pconstruct cd (Some (cnv_patts patts)))
+            ~guard:None
+            ~rhs:[%expr
+              let pos = [%e write_tag] [%e eint ~loc i] in
+              [%e expr]
+            ]
+      )
     in
     `Match matchings
 
@@ -936,6 +964,22 @@ module Generate_bin_read = struct
     let f = get_open_expr loc (bin_read_type full_type_name loc tp) in
     `Open (pexp_let ~loc Nonrecursive bindings f)
 
+  (* Record conversions *)
+  let bin_read_label_declaration_list full_type_name loc fields wrap =
+    let bindings, rec_bindings =
+      let map field =
+        let loc = field.pld_loc in
+        let v_name = "v_" ^ field.pld_name.txt in
+        let f = get_open_expr loc (bin_read_type full_type_name loc field.pld_type) in
+        (
+          value_binding ~loc ~pat:(pvar ~loc:field.pld_name.loc v_name) ~expr:f,
+          (Located.map lident field.pld_name, evar ~loc:field.pld_name.loc v_name)
+        )
+      in
+      List.map fields ~f:map |> List.split
+    in
+    let_ins loc bindings (wrap (pexp_record ~loc rec_bindings None))
+
   (* Sum type conversions *)
   let bin_read_sum full_type_name loc alts =
     let map mi cd =
@@ -952,7 +996,12 @@ module Generate_bin_read = struct
         let bindings, args_expr = handle_arg_tp loc full_type_name args in
         let rhs = let_ins loc bindings (econstruct cd (Some args_expr)) in
         case ~lhs:(pint ~loc mi) ~guard:None ~rhs
-      | Pcstr_record _ -> inline_records_are_unsupported ~loc
+      | Pcstr_record fields ->
+        let rhs =
+          bin_read_label_declaration_list full_type_name loc fields
+            (fun e -> econstruct cd (Some e))
+        in
+        case ~lhs:(pint ~loc mi) ~guard:None ~rhs
     in
     let mcs = List.mapi alts ~f:map in
     let n_alts = List.length alts in
@@ -979,19 +1028,8 @@ module Generate_bin_read = struct
 
   (* Record conversions *)
   let bin_read_record full_type_name loc fields =
-    let bindings, rec_bindings =
-      let map field =
-        let loc = field.pld_loc in
-        let v_name = "v_" ^ field.pld_name.txt in
-        let f = get_open_expr loc (bin_read_type full_type_name loc field.pld_type) in
-        (
-          value_binding ~loc ~pat:(pvar ~loc:field.pld_name.loc v_name) ~expr:f,
-          (Located.map lident field.pld_name, evar ~loc:field.pld_name.loc v_name)
-        )
-      in
-      List.map fields ~f:map |> List.split
-    in
-    `Open (let_ins loc bindings (pexp_record ~loc rec_bindings None))
+    let rhs = bin_read_label_declaration_list full_type_name loc fields (fun x -> x) in
+    `Open rhs
 
   (* Empty types *)
   let bin_read_nil full_type_name loc =

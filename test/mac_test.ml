@@ -27,13 +27,18 @@ type 'a record = { a : int; b : 'a; c : 'b. 'b option }
 type 'a singleton_record = { y : 'a }
 [@@deriving bin_io]
 
+type 'a inline_record =
+  | IR of { ir_a : int; ir_b : 'a; ir_c : 'b. 'b option }
+  | Other of int
+[@@deriving bin_io]
+
 type 'a sum = Foo | Bar of int | Bla of 'a * string
 [@@deriving bin_io]
 
 type 'a variant = [ `Foo | `Bar of int | `Bla of 'a * string ]
 [@@deriving bin_io]
 
-type 'a poly_app = (tuple * int singleton_record * 'a record) variant sum list
+type 'a poly_app = (tuple * int singleton_record * 'a record * 'a inline_record) variant sum list
 [@@deriving bin_io]
 
 type 'a rec_t1 = RecFoo1 of 'a rec_t2
@@ -58,7 +63,8 @@ let main () =
   (* Define array of dummy elements to be marshalled *)
   let el =
     let record = { a = 17; b = 2.78; c = None } in
-    let arg = (3.1, "foo", 42L), { y = 4321 }, record in
+    let inline_record = IR {ir_a = 18; ir_b = 43210.; ir_c = None} in
+    let arg = (3.1, "foo", 42L), { y = 4321 }, record, inline_record in
     let variant = `Bla (arg, "fdsa") in
     let sum = Bla (variant, "asdf") in
     let poly_app = [ sum ] in

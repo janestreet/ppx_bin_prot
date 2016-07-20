@@ -87,6 +87,18 @@ include (struct
 end : S)
 
 include (struct
+  type t =
+    | A of {
+      foo : char;
+      bar : int;
+      baz : string;
+    }
+    | B of int
+    | C of char * int * string
+  [@@deriving bin_io]
+end : S)
+
+include (struct
   type 'a t = 'a
   [@@deriving bin_io]
 end : S)
@@ -114,4 +126,15 @@ include (struct
     foo : 'a;
     bar : int;
   } [@@deriving bin_io]
+end : S)
+
+include (struct
+  type 'a t =
+    | A of {
+      foo : 'a;
+      bar : int;
+    }
+    | B of 'a
+    | C
+  [@@deriving bin_io]
 end : S)
