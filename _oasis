@@ -2,7 +2,7 @@ OASISFormat:           0.4
 OCamlVersion:          >= 4.03.0
 FindlibVersion:        >= 1.3.2
 Name:                  ppx_bin_prot
-Version:               114.02+37
+Version:               114.03+54
 Synopsis:              Generation of bin_prot readers and writers from types
 Authors:               Jane Street Group, LLC <opensource@janestreet.com>
 Copyrights:            (C) 2015-2016 Jane Street Group LLC <opensource@janestreet.com>
@@ -21,11 +21,23 @@ FilesAB:               META.ab
 Description:
   Part of the Jane Street's PPX rewriters collection.
 
+Library bin_shape_expand
+  Path:         shape/src
+  Pack:         false
+  Modules:      Bin_shape_expand
+  BuildDepends: compiler-libs.common,
+                ppx_core,
+                ppx_driver,
+                ppx_here.expander,
+                ppx_tools.metaquot,
+                ppx_type_conv
+
 Library ppx_bin_prot
   Path:         src
   Pack:         false
   Modules:      Ppx_bin_prot
-  BuildDepends: compiler-libs.common,
+  BuildDepends: bin_shape_expand,
+                compiler-libs.common,
                 ppx_core,
                 ppx_tools.metaquot,
                 ppx_type_conv

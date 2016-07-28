@@ -1265,11 +1265,12 @@ end
 
 (* Generator for binary protocol type classes *)
 module Generate_tp_class = struct
-  let tp_record ~loc ~writer ~reader =
+  let tp_record ~loc ~writer ~reader ~shape =
     [%expr
       { Bin_prot.Type_class.
         writer = [%e writer]
       ; reader = [%e reader]
+      ; shape = [%e shape]
       }
     ]
 
@@ -1304,7 +1305,18 @@ module Generate_tp_class = struct
       in
       eapply ~loc (evar ~loc @@ "bin_reader_" ^ td.ptype_name.txt) tparam_exprs
     in
-    let body = tp_record ~loc ~writer ~reader in
+    let shape =
+      let tparam_exprs =
+        List.map td.ptype_params ~f:(fun tp ->
+          let name = get_type_param_name tp in
+          [%expr
+            [%e evar ~loc:name.loc @@ "bin_" ^ name.txt]
+            .Bin_prot.Type_class.shape
+          ])
+      in
+      eapply ~loc (evar ~loc @@ "bin_shape_" ^ td.ptype_name.txt) tparam_exprs
+    in
+    let body = tp_record ~loc ~writer ~reader ~shape in
     value_binding ~loc ~pat:(pvar ~loc @@ "bin_" ^ td.ptype_name.txt)
       ~expr:(eabstract ~loc tparam_patts body)
 
@@ -1320,10 +1332,22 @@ module Generate_tp_class = struct
     tp_record ~loc
       ~writer:(Generate_bin_write.extension ~loc ~path ty)
       ~reader:(Generate_bin_read .extension ~loc ~path ty)
+      ~shape:(Bin_shape_expand.shape_extension ~loc ty)
   ;;
 end
 
 let () =
+  let bin_shape =
+    Type_conv.add
+      "bin_shape"
+      ~str_type_decl:Bin_shape_expand.str_gen
+      ~sig_type_decl:Bin_shape_expand.sig_gen
+      ~extension:(fun ~loc ~path:_ -> Bin_shape_expand.shape_extension ~loc)
+  in
+  Type_conv.add
+    "bin_digest"
+    ~extension:(fun ~loc ~path:_ -> Bin_shape_expand.digest_extension ~loc)
+  |> Type_conv.ignore;
   let bin_write =
     Type_conv.add
       "bin_write"
@@ -1351,6 +1375,6 @@ let () =
       ~sig_type_decl:Sig.bin_type_class
       ~extension:Generate_tp_class.extension
   in
-  let set = [bin_write; bin_read; bin_type_class] in
+  let set = [bin_shape; bin_write; bin_read; bin_type_class] in
   Type_conv.add_alias "bin_io" set ~str_type_decl:(List.rev set) |> Type_conv.ignore
 ;;

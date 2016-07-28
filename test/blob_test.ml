@@ -46,7 +46,7 @@ let convert bin_writer bin_reader value =
   let buffer = Bin_prot.Utils.bin_dump bin_writer value in
   bin_reader.Bin_prot.Type_class.read buffer ~pos_ref:(ref 0)
 
-let roundtrip { Bin_prot.Type_class. reader; writer } value =
+let roundtrip { Bin_prot.Type_class. reader; writer; shape = _ } value =
   assert (convert writer reader value = value)
 
 module Dropped = struct

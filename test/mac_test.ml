@@ -21,14 +21,14 @@ end
 type tuple = float * string * int64
 [@@deriving bin_io]
 
-type 'a record = { a : int; b : 'a; c : 'b. 'b option }
+type 'a record = { a : int; b : 'a; c : 'a option }
 [@@deriving bin_io]
 
 type 'a singleton_record = { y : 'a }
 [@@deriving bin_io]
 
 type 'a inline_record =
-  | IR of { ir_a : int; ir_b : 'a; ir_c : 'b. 'b option }
+  | IR of { ir_a : int; ir_b : 'a; ir_c : 'a option }
   | Other of int
 [@@deriving bin_io]
 

@@ -16,7 +16,9 @@ depends: [
   "bin_prot"
   "js-build-tools" {build}
   "ppx_core"
+  "ppx_driver"
+  "ppx_here"
   "ppx_tools"      {>= "0.99.3"}
   "ppx_type_conv"
 ]
-available: [ ocaml-version = "4.03.0" ]
+available: [ ocaml-version >= "4.03.0" ]
