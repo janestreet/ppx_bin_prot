@@ -1,0 +1,7 @@
+
+(library
+ ((name bin_shape_expand)
+  (public_name ppx_bin_prot.shape-expander)
+  (wrapped false)
+  (libraries (ocamlcommon ppx_driver ppx_core ppx_type_conv ppx_here_expander))
+  (preprocess ((metaquot All)))))
