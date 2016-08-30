@@ -1002,7 +1002,7 @@ module Dub = struct
 
   (* Use [bin_digest..] function/extension *)
   let%test_unit _ =
-    [%test_result: string] (Shape.Digest.to_hex [%bin_digest: t4])
+    [%test_result: string] [%bin_digest: t4]
       ~expect:"a66734cfcaea50f37e04cd706cf9c7d0"
 
   module By_hand = struct

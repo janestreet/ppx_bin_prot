@@ -315,4 +315,4 @@ let shape_extension ~loc:_ typ =
   of_type ~allow_free_vars ~context typ
 
 let digest_extension ~loc typ =
-  [%expr Bin_prot.Shape.eval_to_digest [%e shape_extension ~loc typ]]
+  [%expr Bin_prot.Shape.Digest.to_hex (Bin_prot.Shape.eval_to_digest [%e shape_extension ~loc typ])]
