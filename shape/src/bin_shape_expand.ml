@@ -23,14 +23,6 @@ let loc_string loc =
   [%expr Bin_prot.Shape.Location.of_string
            [%e Ppx_here_expander.lift_position_as_string ~loc]]
 
-let map_last_lid : Longident.t -> f:(string -> string) -> Longident.t = fun lid ~f ->
-  let rec trav = function
-    | Lident s -> Lident (f s)
-    | Ldot (lid,s) -> Ldot (lid, f s)
-    | Lapply (lid1,lid2) -> Lapply (lid1, trav lid2)
-  in
-  trav lid
-
 let app_list ~loc (func:expression) (args:expression list) =
   [%expr [%e func] [%e elist ~loc args]]
 
@@ -39,8 +31,8 @@ let curry_app_list ~loc (func:expression) (args:expression list) =
 
 let bin_shape_ tname = "bin_shape_" ^ tname
 
-let bin_shape_lid ~loc (lid:Longident.t loc) =
-  pexp_ident ~loc (Located.map (map_last_lid ~f:bin_shape_) lid)
+let bin_shape_lid ~loc id =
+  unapplied_type_constr_conv ~loc id ~f:bin_shape_
 
 let shape_tid ~loc ~(tname:string) =
   [%expr Bin_prot.Shape.Tid.of_string [%e estring ~loc tname]]

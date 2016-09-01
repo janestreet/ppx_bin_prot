@@ -147,14 +147,8 @@ end
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_size = struct
-  let mk_abst_call (id : Longident.t Location.loc) =
-    let txt : Longident.t =
-      match id.txt with
-      | Lident s -> Lident ("bin_size_" ^ s)
-      | Ldot (id, s) -> Ldot (id, "bin_size_" ^ s)
-      | Lapply _ -> id.txt
-    in
-    pexp_ident ~loc:id.loc { id with txt }
+  let mk_abst_call ~loc id args =
+    type_constr_conv ~loc id ~f:(fun s -> "bin_size_" ^ s) args
 
   (* Conversion of types *)
   let rec bin_size_type full_type_name _loc ty =
@@ -174,14 +168,13 @@ module Generate_bin_size = struct
 
   (* Conversion of polymorphic types *)
   and bin_size_appl_fun full_type_name loc id args =
-    let func = mk_abst_call id in
     let sizers =
       List.map args ~f:(fun ty ->
         match bin_size_type full_type_name ty.ptyp_loc ty with
         | `Fun e -> e
         | `Match cases -> pexp_function ~loc:ty.ptyp_loc cases)
     in
-    match eapply ~loc func sizers with
+    match mk_abst_call ~loc id sizers with
     | [%expr Bin_prot.Size.bin_size_array Bin_prot.Size.bin_size_float ] ->
       [%expr Bin_prot.Size.bin_size_float_array ]
     | e -> e
@@ -424,14 +417,8 @@ end
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_write = struct
-  let mk_abst_call (id : Longident.t Location.loc) =
-    let txt : Longident.t =
-      match id.txt with
-      | Lident s -> Lident ("bin_write_" ^ s)
-      | Ldot (id, s) -> Ldot (id, "bin_write_" ^ s)
-      | Lapply _ -> id.txt
-    in
-    pexp_ident ~loc:id.loc { id with txt }
+  let mk_abst_call ~loc id args =
+    type_constr_conv ~loc id ~f:(fun s -> "bin_write_" ^ s) args
 
   (* Conversion of types *)
   let rec bin_write_type full_type_name _loc ty =
@@ -451,7 +438,6 @@ module Generate_bin_write = struct
 
   (* Conversion of polymorphic types *)
   and bin_write_appl_fun full_type_name loc id args =
-    let func = mk_abst_call id in
     let writers =
       List.map args ~f:(fun ty ->
         match bin_write_type full_type_name ty.ptyp_loc ty with
@@ -461,7 +447,7 @@ module Generate_bin_write = struct
       )
     in
     let e =
-      match eapply ~loc func writers with
+      match mk_abst_call ~loc id writers with
       | [%expr Bin_prot.Write.bin_write_array Bin_prot.Write.bin_write_float ] ->
         [%expr Bin_prot.Write.bin_write_float_array ]
       | e -> e
@@ -750,22 +736,13 @@ module Generate_bin_read = struct
     | None -> "<anonymous type>"
     | Some s -> s
 
-  let map_last_component (id : Longident.t Location.loc) ~f =
-    let txt : Longident.t =
-      match id.txt with
-      | Lident s -> Lident (f s)
-      | Ldot (id, s) -> Ldot (id, f s)
-      | Lapply _ -> id.txt
-    in
-    { id with txt }
-
-  let mk_abst_call _loc ?(internal = false) (id : _ Location.loc) =
-    pexp_ident ~loc:id.loc @@ map_last_component id ~f:(fun s ->
-      let s = "bin_read_" ^ s in
-      if internal then "__" ^ s ^ "__" else s)
+  let mk_abst_call loc ?(internal = false) id args =
+    type_constr_conv ~loc id args
+      ~f:(fun s -> let s = "bin_read_" ^ s in
+                   if internal then "__" ^ s ^ "__" else s)
 
   (* Conversion of type paths *)
-  let bin_read_path_fun loc id = mk_abst_call loc id
+  let bin_read_path_fun loc id args = mk_abst_call loc id args
 
   let get_closed_expr loc = function
     | `Open   expr -> [%expr  fun buf ~pos_ref -> [%e expr] ]
@@ -804,9 +781,7 @@ module Generate_bin_read = struct
           get_closed_expr _loc (bin_read_type full_type_name _loc tp))
       in
       let expr =
-        match
-          eapply ~loc (bin_read_path_fun id.loc id) args_expr
-        with
+        match bin_read_path_fun id.loc id args_expr with
         | [%expr Bin_prot.Read.bin_read_array Bin_prot.Read.bin_read_float ] ->
           [%expr  Bin_prot.Read.bin_read_float_array ]
         | expr -> expr
@@ -850,12 +825,11 @@ module Generate_bin_read = struct
   and mk_internal_call full_type_name loc ty =
     match ty.ptyp_desc with
     | Ptyp_constr (id, args) | Ptyp_class (id, args) ->
-      let call = mk_abst_call loc ~internal:true id in
       let arg_exprs =
         List.map args ~f:(fun tp ->
           get_closed_expr loc (bin_read_type full_type_name loc tp))
       in
-      eapply ~loc call arg_exprs
+      mk_abst_call loc ~internal:true id arg_exprs
     | _ ->
       Location.raise_errorf ~loc:ty.ptyp_loc "bin_read: unknown type"
 
@@ -1133,9 +1107,7 @@ module Generate_bin_read = struct
                     !pos_ref
               ]
             | Pexp_ident id ->
-              let expr =
-                pexp_ident ~loc (map_last_component id ~f:(fun s -> "__" ^ s ^ "__"))
-              in
+              let expr = unapplied_type_constr_conv ~loc id ~f:(fun s -> "__" ^ s ^ "__") in
               let cnv_expr = cnv expr in
               alias_or_fun cnv_expr [%expr
                 fun buf ~pos_ref vint ->
