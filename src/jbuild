@@ -1,7 +1,7 @@
 (library
  ((name ppx_bin_prot)
   (public_name ppx_bin_prot)
-  (public_release ((kind ppx_type_conv_plugin)))
-  (wrapped false)
-  (libraries (ocamlcommon ppx_core ppx_type_conv bin_shape_expand))
-  (preprocess ((metaquot All)))))
+  (kind ppx_type_conv_plugin)
+  (ppx_runtime_libraries (bin_prot))
+  (libraries (compiler-libs.common ppx_core ppx_type_conv bin_shape_expand))
+  (preprocess metaquot)))
