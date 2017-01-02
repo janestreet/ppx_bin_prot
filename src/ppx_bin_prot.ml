@@ -73,7 +73,7 @@ let atoms_in_row_fields row_fields =
 ;;
 
 let atoms_in_variant cds =
-  List.exists cds ~f:(fun cds ->
+  List.filter cds ~f:(fun cds ->
     match cds.pcd_args with
     | Pcstr_tuple [] -> true
     | Pcstr_tuple _ -> false
@@ -362,10 +362,16 @@ module Generate_bin_size = struct
           :: acc
       )
     in
+    let atom_matching init atoms =
+      List.fold_left atoms
+        ~init:(pconstruct init None)
+        ~f:(fun acc atom -> ppat_or ~loc acc (pconstruct atom None))
+    in
     let matchings =
-      if atoms_in_variant alts then
-        case ~lhs:(ppat_any ~loc) ~guard:None ~rhs:size_tag :: nonatom_matchings
-      else
+      match atoms_in_variant alts with
+      | init::atoms ->
+        case ~lhs:(atom_matching init atoms) ~guard:None ~rhs:size_tag :: nonatom_matchings
+      | [] ->
         nonatom_matchings
     in
     `Match (List.rev matchings)
