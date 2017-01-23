@@ -369,10 +369,10 @@ module Generate_bin_size = struct
     in
     let matchings =
       match atoms_in_variant alts with
-      | init::atoms ->
-        case ~lhs:(atom_matching init atoms) ~guard:None ~rhs:size_tag :: nonatom_matchings
       | [] ->
         nonatom_matchings
+      | init :: atoms ->
+        case ~lhs:(atom_matching init atoms) ~guard:None ~rhs:size_tag :: nonatom_matchings
     in
     `Match (List.rev matchings)
 
