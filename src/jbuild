@@ -4,4 +4,4 @@
   (kind ppx_type_conv_plugin)
   (ppx_runtime_libraries (bin_prot))
   (libraries (compiler-libs.common ppx_core ppx_type_conv bin_shape_expand))
-  (preprocess metaquot)))
+  (preprocess (pps (ppx_metaquot)))))

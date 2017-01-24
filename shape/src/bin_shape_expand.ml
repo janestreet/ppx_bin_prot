@@ -1,20 +1,8 @@
-open StdLabels
-open Asttypes
-open Parsetree
-open Longident
-open Ppx_core.Std
+open Ppx_core
 open Ast_builder.Default
 
 module Type_conv = Ppx_type_conv.Std.Type_conv
 module Generator = Type_conv.Generator
-
-module List = struct
-  include List
-  let concat_map xs ~f = concat (List.map xs ~f)
-  let filter_map xs ~f = concat_map xs ~f:(fun x -> match f x with None -> [] | Some y -> [y])
-end
-
-[@@@metaloc loc]
 
 let errorf ~loc =
   Printf.ksprintf (Location.raise_errorf ~loc "ppx_bin_shape: %s")
@@ -77,7 +65,7 @@ module Context : sig
 end = struct
   type t = { tds : type_declaration list }
   let create tds = { tds }
-  let is_local t ~tname = List.exists t.tds ~f:(fun td -> tname = td.ptype_name.txt)
+  let is_local t ~tname = List.exists t.tds ~f:(fun td -> String.equal tname td.ptype_name.txt)
 end
 
 let of_type : (
@@ -199,7 +187,7 @@ end = struct
         let pats = List.map tds ~f:(fun td ->
           let {Location.loc;txt=tname} = td.ptype_name in
           let name = mk_ tname in
-          ppat_var ~loc (Location.mkloc name loc)
+          ppat_var ~loc (Loc.make name ~loc)
         )
         in
         ppat_tuple ~loc pats
@@ -289,7 +277,7 @@ end = struct
         ~init: [%type: Bin_prot.Shape.t]
         ~f:(fun acc _ -> [%type: Bin_prot.Shape.t -> [%t acc]])
     in
-    psig_value ~loc (value_description ~loc ~name:(Location.mkloc name loc) ~type_ ~prim:[])
+    psig_value ~loc (value_description ~loc ~name:(Loc.make name ~loc) ~type_ ~prim:[])
 
   let gen =
     Type_conv.Generator.make Type_conv.Args.empty (fun ~loc:_ ~path:_ (_rec_flag, tds) ->

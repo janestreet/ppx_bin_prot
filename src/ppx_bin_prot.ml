@@ -1,12 +1,10 @@
 (** Ppx_bin_prot: Preprocessing Module for a Type Safe Binary Protocol *)
 
-open StdLabels
 open Ppx_type_conv.Std
-open Ppx_core.Std
+open Ppx_core
 open Ast_builder.Default
-open Parsetree
 
-[@@@metaloc loc]
+let ( @@ ) a b = a b
 
 (* +-----------------------------------------------------------------+
    | Signature generators                                            |
@@ -15,14 +13,13 @@ open Parsetree
 module Sig = struct
   let mk_sig_generator combinators =
     let mk_sig ~loc:_ ~path:_ (_rf, tds) =
-      List.map tds ~f:(fun td -> List.map combinators ~f:(fun mk -> mk td))
-      |> List.flatten
+      List.concat_map tds ~f:(fun td -> List.map combinators ~f:(fun mk -> mk td))
     in
     Type_conv.Generator.make Type_conv.Args.empty mk_sig
 
   let mk name_format type_constr ?(wrap_result=fun ~loc:_ x -> x) td =
     let loc = td.ptype_loc in
-    let name = Located.map (Printf.sprintf name_format) td.ptype_name in
+    let name = Loc.map ~f:(Printf.sprintf name_format) td.ptype_name in
     let id = Longident.parse type_constr in
     let wrap_type ~loc t =
       ptyp_constr ~loc (Located.mk ~loc id) [t]
@@ -139,7 +136,7 @@ end = struct
         "Bug in ppx_bin_prot: full type name needed but not in a type declaration.\n\
          Callstack:\n\
          %s"
-        (Printexc.get_callstack 256 |> Printexc.raw_backtrace_to_string)
+        (Caml.Printexc.get_callstack 256 |> Caml.Printexc.raw_backtrace_to_string)
 end
 
 (* +-----------------------------------------------------------------+
@@ -192,7 +189,7 @@ module Generate_bin_size = struct
     let rec loop i = function
       | el :: rest ->
         let tp = get_tp el in
-        let v_name = "v" ^ string_of_int i in
+        let v_name = "v" ^ Int.to_string i in
         let v_expr =
           let e_name = evar ~loc v_name in
           let expr =
@@ -203,7 +200,7 @@ module Generate_bin_size = struct
           [%expr Pervasives.(+) size [%e expr] ]
         in
         let patt = mk_patt loc v_name el in
-        if rest = [] then [patt], v_expr
+        if List.is_empty rest then [patt], v_expr
         else
           let patts, in_expr = loop (i + 1) rest in
             patt :: patts, [%expr  let size = [%e v_expr] in [%e in_expr] ]
@@ -473,7 +470,7 @@ module Generate_bin_write = struct
     let rec loop i = function
       | el :: rest ->
           let tp = get_tp el in
-          let v_name = "v" ^ string_of_int i in
+          let v_name = "v" ^ Int.to_string i in
           let v_expr =
             let e_name = evar ~loc v_name in
             match bin_write_type full_type_name loc tp with
@@ -481,7 +478,7 @@ module Generate_bin_write = struct
             | `Match cases  -> pexp_match ~loc e_name cases
           in
           let patt = mk_patt loc v_name el in
-          if rest = [] then [patt], v_expr
+          if List.is_empty rest then [patt], v_expr
           else
             let patts, in_expr = loop (i + 1) rest in
             patt :: patts, [%expr  let pos = [%e v_expr] in [%e in_expr] ]
@@ -525,7 +522,7 @@ module Generate_bin_write = struct
           case ~lhs:(ppat_variant  ~loc cnstr None) ~guard:None
             ~rhs:[%expr
               Bin_prot.Write.bin_write_variant_int buf ~pos
-                [%e eint ~loc (Btype.hash_variant cnstr) ]
+                [%e eint ~loc (Ocaml_common.Btype.hash_variant cnstr) ]
             ]
         | Rtag (cnstr, _, false, tp :: _) ->
           let write_args =
@@ -539,7 +536,7 @@ module Generate_bin_write = struct
             ~rhs:[%expr
               let pos =
                 Bin_prot.Write.bin_write_variant_int buf ~pos
-                  [%e eint ~loc (Btype.hash_variant cnstr)]
+                  [%e eint ~loc (Ocaml_common.Btype.hash_variant cnstr)]
               in
               [%e write_args]
             ]
@@ -710,7 +707,7 @@ module Generate_bin_write = struct
     let rec_flag = really_recursive rec_flag tds in
     let write_bindings, writer_bindings =
       List.map tds ~f:(bin_write_td ~loc ~path)
-      |> List.split
+      |> List.unzip
     in
     Generate_bin_size.bin_size ~loc ~path (rec_flag, tds)
     :: [ pstr_value ~loc rec_flag write_bindings
@@ -765,10 +762,10 @@ module Generate_bin_read = struct
         let f =
           get_open_expr loc (bin_read_type full_type_name loc tp)
         in
-        let arg_name = "arg_" ^ string_of_int (ai + 1) in
+        let arg_name = "arg_" ^ Int.to_string (ai + 1) in
         (evar ~loc arg_name, value_binding ~loc ~pat:(pvar ~loc arg_name) ~expr:f)
       in
-      List.mapi arg_tp ~f:arg_map |> List.split
+      List.mapi arg_tp ~f:arg_map |> List.unzip
     in
     let args_expr =
       match args with
@@ -815,13 +812,13 @@ module Generate_bin_read = struct
   and bin_read_tuple full_type_name loc tps =
     let bindings, exprs =
       let map i tp =
-        let v_name = "v" ^ string_of_int (i + 1) in
+        let v_name = "v" ^ Int.to_string (i + 1) in
         let expr =
           get_open_expr loc (bin_read_type full_type_name loc tp)
         in
         (value_binding ~loc ~pat:(pvar ~loc v_name) ~expr, evar ~loc v_name)
       in
-      List.mapi tps ~f:map |> List.split
+      List.mapi tps ~f:map |> List.unzip
     in
     `Open (let_ins loc bindings (pexp_tuple ~loc exprs))
 
@@ -880,7 +877,7 @@ module Generate_bin_read = struct
               pexp_variant ~loc cnstr None
           in
           let this_mc =
-            case ~lhs:(pint ~loc (Btype.hash_variant cnstr)) ~guard:None ~rhs
+            case ~lhs:(pint ~loc (Ocaml_common.Btype.hash_variant cnstr)) ~guard:None ~rhs
           in
           add_mc next this_mc t
         | Rinherit ty ->
@@ -956,7 +953,7 @@ module Generate_bin_read = struct
           (Located.map lident field.pld_name, evar ~loc:field.pld_name.loc v_name)
         )
       in
-      List.map fields ~f:map |> List.split
+      List.map fields ~f:map |> List.unzip
     in
     let_ins loc bindings (wrap (pexp_record ~loc rec_bindings None))
 
@@ -1103,7 +1100,7 @@ module Generate_bin_read = struct
             | Pexp_ident { txt = Ldot (Ldot (Lident "Bin_prot", "Read"), _); _ } ->
               variant_wrong_type ~loc full_type_name
             | Pexp_ident { txt = Lident name; _ }
-              when name.[0] = '_' && name.[1] = 'o' ->
+              when String.is_prefix name ~prefix:"_o" ->
               let full_type_name = Full_type_name.get_exn ~loc full_type_name in
               [%expr
                 fun _buf ~pos_ref _vint ->
@@ -1208,9 +1205,9 @@ module Generate_bin_read = struct
      | _ -> ());
     let vtag_read_bindings, read_and_reader_bindings =
       List.map tds ~f:(fun td -> bin_read_td td ~loc ~path)
-      |> List.split
+      |> List.unzip
     in
-    let read_bindings, reader_bindings = List.split read_and_reader_bindings in
+    let read_bindings, reader_bindings = List.unzip read_and_reader_bindings in
     let defs =
       match rec_flag with
       | Recursive ->

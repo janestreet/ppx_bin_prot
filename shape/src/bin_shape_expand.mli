@@ -1,5 +1,4 @@
-open Parsetree
-open Asttypes
+open Ppx_core
 open Ppx_type_conv.Std
 open Type_conv
 
