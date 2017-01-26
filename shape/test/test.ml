@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 
 module Shape = struct
   include Bin_prot.Shape
