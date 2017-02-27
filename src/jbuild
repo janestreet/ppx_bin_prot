@@ -5,3 +5,5 @@
   (ppx_runtime_libraries (bin_prot))
   (libraries (compiler-libs.common ppx_core ppx_type_conv bin_shape_expand))
   (preprocess (pps (ppx_metaquot)))))
+
+(jbuild_version jane_street)

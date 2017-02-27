@@ -4,3 +4,5 @@
   (public_name ppx_bin_prot.shape-expander)
   (libraries (ppx_driver ppx_core ppx_type_conv ppx_here.expander))
   (preprocess (pps (ppx_metaquot)))))
+
+(jbuild_version jane_street)

@@ -10,3 +10,5 @@
     core
     core_bench
     oUnit))))
+
+(jbuild_version jane_street)
