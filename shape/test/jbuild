@@ -1,5 +1,3 @@
-(toplevel_expect_tests
- ((libraries (test_bin_shape))))
 
 (library
  ((name test_bin_shape)

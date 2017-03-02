@@ -9,6 +9,7 @@
    (bin_prot
     core
     core_bench
-    oUnit))))
+    oUnit))
+  (preprocess (pps (ppx_jane)))))
 
 (jbuild_version jane_street)
