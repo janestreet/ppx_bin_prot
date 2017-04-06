@@ -246,7 +246,7 @@ module Generate_bin_size = struct
         | Rtag (cnstr, _, false, tp :: _) ->
           let size_args =
             match bin_size_type full_type_name tp.ptyp_loc tp with
-            | `Fun fun_expr -> [%expr [%e fun_expr] args ]
+            | `Fun fun_expr -> eapply ~loc fun_expr [ [%expr args ] ]
             | `Match cases  -> pexp_match ~loc [%expr args] cases
           in
           case
@@ -266,7 +266,7 @@ module Generate_bin_size = struct
             case
               ~lhs:(ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc "v"))
               ~guard:None
-              ~rhs:[%expr [%e call] v]
+              ~rhs:(eapply ~loc call [ [%expr v] ])
             :: acc
           | _ ->
             Location.raise_errorf ~loc "bin_size_variant: unknown type"
@@ -382,7 +382,7 @@ module Generate_bin_size = struct
   let make_fun ~loc ?(don't_expand=false) fun_or_match =
     match fun_or_match with
     | `Fun fun_expr when don't_expand -> fun_expr
-    | `Fun fun_expr -> alias_or_fun fun_expr [%expr fun v -> [%e fun_expr] v ]
+    | `Fun fun_expr -> alias_or_fun fun_expr [%expr fun v -> [%e eapply ~loc fun_expr [[%expr v]]]]
     | `Match matchings -> pexp_function ~loc matchings
 
   let sizer_body_of_td ~path td =
@@ -616,7 +616,7 @@ module Generate_bin_write = struct
           in
           case ~lhs:(pconstruct cd (Some args)) ~guard:None
             ~rhs:[%expr
-              let pos = [%e write_tag] [%e eint ~loc i] in
+              let pos = [%e eapply ~loc write_tag [eint ~loc i]] in
               [%e write_args]
             ]
         | Pcstr_record fields ->
@@ -631,7 +631,7 @@ module Generate_bin_write = struct
             ~lhs:(pconstruct cd (Some (cnv_patts patts)))
             ~guard:None
             ~rhs:[%expr
-              let pos = [%e write_tag] [%e eint ~loc i] in
+              let pos = [%e eapply ~loc write_tag [eint ~loc i]] in
               [%e expr]
             ]
       )
@@ -678,7 +678,7 @@ module Generate_bin_write = struct
   let project_vars expr vars ~field_name =
     let call = project_vars expr vars ~field_name in
     let loc = call.pexp_loc in
-    alias_or_fun call [%expr fun v -> [%e call] v ]
+    alias_or_fun call [%expr fun v -> [%e eapply ~loc call [ [%expr v] ]]]
 
   (* Generate code from type definitions *)
   let bin_write_td ~loc ~path td =
