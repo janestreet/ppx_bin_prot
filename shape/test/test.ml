@@ -1706,7 +1706,7 @@ module Annotation_Syntax = struct
     module Bin_io_with_annotated_shape_broken = struct
 
 
-      type t = float [@@deriving bin_io, bin_shape ~annotate_provisionally:"dollars"]
+      type t = float [@@deriving bin_shape ~annotate_provisionally:"dollars", bin_io]
 
       let%test_unit _ = ensure_all_different [ (* BUG *)
         [%bin_shape: Without_syntax.t];
