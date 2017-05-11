@@ -1,7 +1,5 @@
----
-title: ppx_bin_prot
-parent: ../README.md
----
+ppx_bin_prot
+============
 
 Generation of binary serialization and deserialization functions from type definitions.
 There's more information about:
