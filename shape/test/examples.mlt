@@ -40,7 +40,7 @@ end
 
 [%%expect{|
 Line _, characters 2-97:
-ppx_bin_shape: unexpected [~annotate_provisionally] on multi type-declaration
+Error: ppx_bin_shape: unexpected [~annotate_provisionally] on multi type-declaration
 |}]
 
 module Inheriting_from_polymorphic_variant = struct
@@ -128,7 +128,7 @@ end
 
 [%%expect{|
 Line _, characters 44-47:
-ppx_type_conv: generator 'bin_shape' doesn't accept argument 'floob'
+Error: ppx_type_conv: generator 'bin_shape' doesn't accept argument 'floob'
 |}]
 
 module Shapeless = struct
@@ -154,7 +154,7 @@ end
 
 [%%expect{|
 Line _, characters 2-79:
-ppx_bin_shape: cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]
+Error: ppx_bin_shape: cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]
 |}]
 
 module Basetype_syntax = struct
@@ -183,7 +183,7 @@ end
 
 [%%expect{|
 Line _, characters 2-83:
-ppx_bin_shape: unexpected [~basetype] on multi type-declaration
+Error: ppx_bin_shape: unexpected [~basetype] on multi type-declaration
 |}]
 
 module Cannot_evaluate_shape_containing_type_vars = struct
@@ -192,5 +192,5 @@ end
 
 [%%expect{|
 Line _, characters 23-25:
-ppx_bin_shape: unexpected free type variable: 'a
+Error: ppx_bin_shape: unexpected free type variable: 'a
 |}]
