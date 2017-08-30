@@ -4,8 +4,8 @@ open Ast_builder.Default
 module Type_conv = Ppx_type_conv.Std.Type_conv
 module Generator = Type_conv.Generator
 
-let errorf ~loc =
-  Printf.ksprintf (Location.raise_errorf ~loc "ppx_bin_shape: %s")
+let raise_errorf ~loc fmt =
+  Location.raise_errorf ~loc ("ppx_bin_shape: " ^^ fmt)
 
 let loc_string loc =
   [%expr Bin_prot.Shape.Location.of_string
@@ -77,11 +77,11 @@ let of_type : (
     match row with
     | Rtag (_,_,true,_::_)
     | Rtag (_,_,false,_::_::_) ->
-      errorf ~loc "unsupported '&' in row_field: %s" (string_of_core_type typ_for_error)
+      raise_errorf ~loc "unsupported '&' in row_field: %s" (string_of_core_type typ_for_error)
     | Rtag (s,_,true,[]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc s] None]
     | Rtag (s,_,false,[t]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc s] (Some [%e traverse t])]
     | Rtag (_,_,false,[]) ->
-      errorf ~loc "impossible row_type: Rtag (_,_,false,[])"
+      raise_errorf ~loc "impossible row_type: Rtag (_,_,false,[])"
     | Rinherit t ->
        [%expr Bin_prot.Shape.inherit_ [%e loc_string t.ptyp_loc] [%e traverse t]]
 
@@ -105,7 +105,7 @@ let of_type : (
     | Ptyp_var tvar ->
       if allow_free_vars
       then [%expr Bin_prot.Shape.var [%e loc_string loc] [%e shape_vid ~loc ~tvar]]
-      else errorf ~loc "unexpected free type variable: '%s" tvar
+      else raise_errorf ~loc "unexpected free type variable: '%s" tvar
 
     | Ptyp_variant (rows,_,None) ->
       shape_poly_variant ~loc (List.map rows ~f:(fun row ->
@@ -120,7 +120,7 @@ let of_type : (
     | Ptyp_alias _
     | Ptyp_package _
     | Ptyp_extension _
-      -> errorf ~loc "unsupported type: %s" (string_of_core_type typ)
+      -> raise_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
   in
   traverse
 
@@ -129,7 +129,7 @@ let tvars_of_def (td:type_declaration) : string list =
     let loc = typ.ptyp_loc in
     match typ with
     | { ptyp_desc = Ptyp_var tvar; _ } -> tvar
-    | _ -> errorf ~loc "unexpected non-tvar in type params")
+    | _ -> raise_errorf ~loc "unexpected non-tvar in type params")
 
 module Structure : sig
 
@@ -157,7 +157,7 @@ end = struct
     | Ptype_abstract ->
       None
     | Ptype_open ->
-      errorf ~loc "open types not supported"
+      raise_errorf ~loc "open types not supported"
 
   let expr_of_td ~loc ~context (td : type_declaration) : expression option =
     let expr =
@@ -194,17 +194,17 @@ end = struct
       in
       let () =
         match annotation_opt,basetype_opt with
-        | Some _,Some _ -> errorf ~loc "cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]"
+        | Some _,Some _ -> raise_errorf ~loc "cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]"
         | _ -> ()
       in
       let () =
         match tds,annotation_opt with
-        | ([] | _::_::_), Some _ -> errorf ~loc "unexpected [~annotate_provisionally] on multi type-declaration"
+        | ([] | _::_::_), Some _ -> raise_errorf ~loc "unexpected [~annotate_provisionally] on multi type-declaration"
         | _ -> ()
       in
       let () =
         match tds,basetype_opt with
-        | ([] | _::_::_), Some _ -> errorf ~loc "unexpected [~basetype] on multi type-declaration"
+        | ([] | _::_::_), Some _ -> raise_errorf ~loc "unexpected [~basetype] on multi type-declaration"
         | _ -> ()
       in
       let annotate_f : (expression -> expression) =
