@@ -5,6 +5,7 @@
 
 (executables
  ((names (example test_runner mac_test microbench bin_prot_test_nonrec))
+  (flags (:standard -safe-string))
   (libraries
    (bin_prot
     core
