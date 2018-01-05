@@ -37,9 +37,9 @@ module Known = struct
 end
 
 module Unknown = struct
-  type t = Opaque.t T.t [@@deriving bin_io]
+  type t = Opaque.Bigstring.t T.t [@@deriving bin_io]
 
-  let value = T.value (to_opaque Mystery.value Mystery.bin_writer_t)
+  let value = T.value (Opaque.Bigstring.to_opaque Mystery.value Mystery.bin_writer_t)
 end
 
 let convert bin_writer bin_reader value =
