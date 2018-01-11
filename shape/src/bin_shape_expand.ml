@@ -50,13 +50,30 @@ let shape_variant ~loc (xs: (string * expression list) list) =
 let shape_poly_variant ~loc (xs: expression list) =
   [%expr Bin_prot.Shape.poly_variant [%e loc_string loc] [%e elist ~loc xs]]
 
-let shape_annotate_provisionally ~loc ~(name:string) (x:expression) =
-  [%expr Bin_prot.Shape.annotate_provisionally
-           (Bin_prot.Shape.Uuid.of_string [%e estring ~loc name]) [%e x]]
+type string_literal_or_other_expression =
+  | String_literal of string
+  | Other_expression of expression
 
-let shape_basetype ~loc ~(uuid:string) (xs:expression list) =
-  app_list ~loc [%expr Bin_prot.Shape.basetype
-                         (Bin_prot.Shape.Uuid.of_string [%e estring ~loc uuid])] xs
+let string_literal f s = f (String_literal s)
+let other_expression f e = f (Other_expression e)
+
+let shape_annotate_provisionally ~loc ~name (x:expression) =
+  let name =
+    match name with
+    | Other_expression e -> e
+    | String_literal s ->
+        [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
+  in
+  [%expr Bin_prot.Shape.annotate_provisionally [%e name] [%e x]]
+
+let shape_basetype ~loc ~uuid (xs:expression list) =
+  let uuid =
+    match uuid with
+    | Other_expression e -> e
+    | String_literal s ->
+        [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
+  in
+  app_list ~loc [%expr Bin_prot.Shape.basetype [%e uuid]] xs
 
 module Context : sig
   type t
@@ -175,9 +192,13 @@ end = struct
 
   let gen =
     Type_conv.Generator.make Type_conv.Args.(empty
-                                             +> arg "annotate_provisionally" (estring __)
-                                             +> arg "basetype" (estring __)
-    ) (fun ~loc ~path:_ (rec_flag, tds) (annotation_opt:string option) (basetype_opt:string option) ->
+                                             +> arg "annotate_provisionally"
+                                                  ((map ~f:string_literal (estring __))
+                                                   ||| (map ~f:other_expression __))
+                                             +> arg "basetype"
+                                                  ((map ~f:string_literal (estring __))
+                                                   ||| (map ~f:other_expression __))
+    ) (fun ~loc ~path:_ (rec_flag, tds) annotation_opt basetype_opt ->
       let context =
         match rec_flag with
         | Recursive -> Context.create tds

@@ -43,6 +43,27 @@ Line _, characters 2-97:
 Error: ppx_bin_shape: unexpected [~annotate_provisionally] on multi type-declaration
 |}]
 
+module Annotation_syntax_uuid = struct
+  let uuid = Shape.Uuid.of_string "test-it"
+  type t = int [@@deriving bin_shape ~annotate_provisionally:uuid]
+end
+
+[%%expect{|
+module Annotation_syntax_uuid :
+  sig val uuid : Shape.Uuid.t type t = int val bin_shape_t : Shape.t end
+|}]
+
+module Annotation_syntax_uuid_wrong_type = struct
+  let uuid = true
+  type t = int [@@deriving bin_shape ~annotate_provisionally:uuid]
+end
+
+[%%expect{|
+Line _, characters 61-65:
+Error: This expression has type bool but an expression was expected of type
+         Shape.Uuid.t
+|}]
+
 module Inheriting_from_polymorphic_variant = struct
   type t1 = [ `A | `B of int ] [@@deriving bin_shape]
   type t2 = [ `C | t1 ] [@@deriving bin_shape]
@@ -67,7 +88,7 @@ end
 [%%expect{|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:63:19: The shape for an inherited type is not described as a polymorphic-variant: (Application ...())").
+ "ppx/ppx_bin_prot/shape/test/examples.mlt:84:19: The shape for an inherited type is not described as a polymorphic-variant: (Application ...())").
 |}]
 
 module Inheriting_from_annotated_polymorphic_variant = struct
@@ -79,7 +100,7 @@ end
 [%%expect{|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:75:19: The shape for an inherited type is not described as a polymorphic-variant: (Annotate my-t1 ...)").
+ "ppx/ppx_bin_prot/shape/test/examples.mlt:96:19: The shape for an inherited type is not described as a polymorphic-variant: (Annotate my-t1 ...)").
 |}]
 
 module Duplicated_variant_constructor_allowed = struct
@@ -119,7 +140,7 @@ end
 [%%expect{|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:115:11: Different shapes for duplicated polymorphic constructor: `a").
+ "ppx/ppx_bin_prot/shape/test/examples.mlt:136:11: Different shapes for duplicated polymorphic constructor: `a").
 |}]
 
 module No_such_bin_shape_syntax = struct
@@ -184,6 +205,27 @@ end
 [%%expect{|
 Line _, characters 2-83:
 Error: ppx_bin_shape: unexpected [~basetype] on multi type-declaration
+|}]
+
+module Basetype_syntax_uuid = struct
+  let uuid = Shape.Uuid.of_string "test-it"
+  type t = Shapeless.t [@@deriving bin_shape ~basetype:uuid]
+end
+
+[%%expect{|
+module Basetype_syntax_uuid :
+  sig val uuid : Shape.Uuid.t type t = int val bin_shape_t : Shape.t end
+|}]
+
+module Basetype_syntax_uuid_wrong_type = struct
+  let uuid = true
+  type t = Shapeless.t [@@deriving bin_shape ~basetype:uuid]
+end
+
+[%%expect{|
+Line _, characters 55-59:
+Error: This expression has type bool but an expression was expected of type
+         Shape.Uuid.t
 |}]
 
 module Cannot_evaluate_shape_containing_type_vars = struct
