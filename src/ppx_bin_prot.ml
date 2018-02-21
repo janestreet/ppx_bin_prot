@@ -285,7 +285,7 @@ module Generate_bin_size = struct
     let bindings =
       let mk_binding parm =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
-        value_binding ~loc ~pat:(pvar ~loc @@ "_size_of_" ^ parm)
+        value_binding ~loc ~pat:(pvar ~loc @@ "_size_of_" ^ parm.txt)
           ~expr:[%expr fun _v ->
                raise (Bin_prot.Common.Poly_rec_write [%e estring ~loc full_type_name])
           ]
@@ -560,7 +560,7 @@ module Generate_bin_write = struct
     let bindings =
       let mk_binding parm =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
-        value_binding ~loc ~pat:(pvar ~loc @@ "_write_" ^ parm)
+        value_binding ~loc ~pat:(pvar ~loc @@ "_write_" ^ parm.txt)
           ~expr:[%expr fun _buf ~pos:_ _v ->
                raise (Bin_prot.Common.Poly_rec_write [%e estring ~loc full_type_name])
           ]
@@ -928,7 +928,7 @@ module Generate_bin_read = struct
       let mk_binding parm =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding ~loc
-          ~pat:(pvar ~loc @@ "_of__" ^ parm)
+          ~pat:(pvar ~loc @@ "_of__" ^ parm.txt)
           ~expr:[%expr
             fun _buf ~pos_ref ->
               Bin_prot.Common.raise_read_error
