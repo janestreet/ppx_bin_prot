@@ -1,7 +1,7 @@
-open Ppx_type_conv.Std
+open Ppxlib
 
-val bin_shape      : Type_conv.t
-val bin_write      : Type_conv.t
-val bin_read       : Type_conv.t
-val bin_type_class : Type_conv.t
-val bin_io         : Type_conv.t
+val bin_shape      : Deriving.t
+val bin_write      : Deriving.t
+val bin_read       : Deriving.t
+val bin_type_class : Deriving.t
+val bin_io         : Deriving.t

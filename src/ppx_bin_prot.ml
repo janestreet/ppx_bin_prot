@@ -1,7 +1,7 @@
 (** Ppx_bin_prot: Preprocessing Module for a Type Safe Binary Protocol *)
 
-open Ppx_type_conv.Std
-open Ppx_core
+open Base
+open Ppxlib
 open Ast_builder.Default
 
 let ( @@ ) a b = a b
@@ -15,7 +15,7 @@ module Sig = struct
     let mk_sig ~loc:_ ~path:_ (_rf, tds) =
       List.concat_map tds ~f:(fun td -> List.map combinators ~f:(fun mk -> mk td))
     in
-    Type_conv.Generator.make Type_conv.Args.empty mk_sig
+    Deriving.Generator.make Deriving.Args.empty mk_sig
 
   let mk name_format type_constr ?(wrap_result=fun ~loc:_ x -> x) td =
     let loc = td.ptype_loc in
@@ -715,7 +715,7 @@ module Generate_bin_write = struct
        ]
   ;;
 
-  let gen = Type_conv.Generator.make Type_conv.Args.empty bin_write
+  let gen = Deriving.Generator.make Deriving.Args.empty bin_write
 
   let extension ~loc ~path:_ ty =
     let full_type_name = Full_type_name.absent in
@@ -1219,7 +1219,7 @@ module Generate_bin_read = struct
     in
     defs @ [ pstr_value ~loc Nonrecursive reader_bindings ]
 
-  let gen = Type_conv.Generator.make Type_conv.Args.empty bin_read
+  let gen = Deriving.Generator.make Deriving.Args.empty bin_read
 
   let extension ~loc ~path:_ ty =
     let full_type_name = Full_type_name.absent in
@@ -1301,7 +1301,7 @@ module Generate_tp_class = struct
     [ pstr_value ~loc Nonrecursive bindings ]
 
   (* Add code generator to the set of known generators *)
-  let gen = Type_conv.Generator.make Type_conv.Args.empty bin_tp_class
+  let gen = Deriving.Generator.make Deriving.Args.empty bin_tp_class
 
   let extension ~loc ~path ty =
     tp_record ~loc
@@ -1312,44 +1312,44 @@ module Generate_tp_class = struct
 end
 
 let bin_shape =
-  Type_conv.add
+  Deriving.add
     "bin_shape"
     ~str_type_decl:Bin_shape_expand.str_gen
     ~sig_type_decl:Bin_shape_expand.sig_gen
     ~extension:(fun ~loc ~path:_ -> Bin_shape_expand.shape_extension ~loc)
 
 let () =
-  Type_conv.add
+  Deriving.add
     "bin_digest"
     ~extension:(fun ~loc ~path:_ -> Bin_shape_expand.digest_extension ~loc)
-  |> Type_conv.ignore
+  |> Deriving.ignore
 
 let bin_write =
-  Type_conv.add
+  Deriving.add
     "bin_write"
     ~str_type_decl:Generate_bin_write.gen
     ~sig_type_decl:Sig.bin_write
 
 let () =
-  Type_conv.add
+  Deriving.add
     "bin_writer"
     ~extension:Generate_bin_write.extension
-  |> Type_conv.ignore
+  |> Deriving.ignore
 
 let bin_read =
-  Type_conv.add
+  Deriving.add
     "bin_read"
     ~str_type_decl:Generate_bin_read.gen
     ~sig_type_decl:Sig.bin_read
 
 let () =
-  Type_conv.add
+  Deriving.add
     "bin_reader"
     ~extension:Generate_bin_read.extension
-  |> Type_conv.ignore
+  |> Deriving.ignore
 
 let bin_type_class =
-  Type_conv.add
+  Deriving.add
     "bin_type_class"
     ~str_type_decl:Generate_tp_class.gen
     ~sig_type_decl:Sig.bin_type_class
@@ -1357,4 +1357,4 @@ let bin_type_class =
 
 let bin_io =
   let set = [bin_shape; bin_write; bin_read; bin_type_class] in
-  Type_conv.add_alias "bin_io" set ~str_type_decl:(List.rev set)
+  Deriving.add_alias "bin_io" set ~str_type_decl:(List.rev set)

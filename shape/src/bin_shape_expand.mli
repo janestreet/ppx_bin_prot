@@ -1,6 +1,5 @@
-open Ppx_core
-open Ppx_type_conv.Std
-open Type_conv
+open Ppxlib
+open Deriving
 
 val str_gen : (structure, rec_flag * type_declaration list) Generator.t
 val sig_gen : (signature, rec_flag * type_declaration list) Generator.t

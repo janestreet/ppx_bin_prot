@@ -4,8 +4,8 @@
   (kind ppx_deriver)
   (ppx_runtime_libraries (bin_prot))
   (flags (:standard -safe-string))
-  (libraries (compiler-libs.common ppx_core ppx_type_conv bin_shape_expand))
-  (preprocess (pps (ppx_metaquot ppx_driver.runner)))))
+  (libraries (compiler-libs.common base ppxlib bin_shape_expand))
+  (preprocess (pps (ppxlib.metaquot ppxlib.runner)))))
 
 
 (jbuild_version 1)

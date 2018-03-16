@@ -1,11 +1,9 @@
-open Ppx_core
+open Base
+open Ppxlib
 open Ast_builder.Default
 
-module Type_conv = Ppx_type_conv.Std.Type_conv
-module Generator = Type_conv.Generator
-
 let raise_errorf ~loc fmt =
-  Location.raise_errorf ~loc ("ppx_bin_shape: " ^^ fmt)
+  Location.raise_errorf ~loc (Caml.(^^) "ppx_bin_shape: " fmt)
 
 let loc_string loc =
   [%expr Bin_prot.Shape.Location.of_string
@@ -150,7 +148,7 @@ let tvars_of_def (td:type_declaration) : string list =
 
 module Structure : sig
 
-  val gen : (structure, rec_flag * type_declaration list) Generator.t
+  val gen : (structure, rec_flag * type_declaration list) Deriving.Generator.t
 
 end = struct
 
@@ -191,7 +189,7 @@ end = struct
     expr
 
   let gen =
-    Type_conv.Generator.make Type_conv.Args.(empty
+    Deriving.Generator.make Deriving.Args.(empty
                                              +> arg "annotate_provisionally"
                                                   ((map ~f:string_literal (estring __))
                                                    ||| (map ~f:other_expression __))
@@ -285,7 +283,7 @@ end
 
 module Signature : sig
 
-  val gen : (signature, rec_flag * type_declaration list) Generator.t
+  val gen : (signature, rec_flag * type_declaration list) Deriving.Generator.t
 
 end = struct
 
@@ -301,7 +299,7 @@ end = struct
     psig_value ~loc (value_description ~loc ~name:(Loc.make name ~loc) ~type_ ~prim:[])
 
   let gen =
-    Type_conv.Generator.make Type_conv.Args.empty (fun ~loc:_ ~path:_ (_rec_flag, tds) ->
+    Deriving.Generator.make Deriving.Args.empty (fun ~loc:_ ~path:_ (_rec_flag, tds) ->
       List.map tds ~f:of_td
     )
 

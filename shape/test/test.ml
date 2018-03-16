@@ -905,7 +905,7 @@ end
 
 module Tricky_mutual = struct
 
-  type 'a inner = Tight of 'a inner | Loose of 'a [@@deriving bin_shape]
+  type 'a inner = Tight of 'a inner | Loose of 'a
   and outer = Z | S of outer inner  [@@deriving bin_shape]
 
   let%test_unit _ = ensure_all_different [
@@ -1712,7 +1712,6 @@ module Annotation_Syntax = struct
         [%bin_shape: Without_syntax.t];
         [%bin_shape: t];
       ]
-
     end
   end
 
