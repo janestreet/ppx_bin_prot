@@ -1,7 +1,6 @@
 
 (library
  ((name test_bin_shape)
-  (flags (:standard -safe-string))
   (libraries (core))
   (preprocess (pps (ppx_assert ppx_custom_printf ppx_bin_prot ppx_inline_test ppxlib.runner)))))
 

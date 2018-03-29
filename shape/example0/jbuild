@@ -2,7 +2,6 @@
 
 (library
  ((name bin_shape_gen_example)
-  (flags (:standard -safe-string))
   (libraries ())
   (preprocess (pps (ppx_bin_prot ppxlib.runner)))))
 
