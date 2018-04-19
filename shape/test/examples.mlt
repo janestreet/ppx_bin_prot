@@ -149,7 +149,7 @@ end
 
 [%%expect{|
 Line _, characters 44-47:
-Error: ppxlib_type_conv: generator 'bin_shape' doesn't accept argument 'floob'
+Error: Ppxlib.Deriving: generator 'bin_shape' doesn't accept argument 'floob'
 |}]
 
 module Shapeless = struct
