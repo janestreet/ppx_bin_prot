@@ -93,8 +93,8 @@ let of_type : (
     | Rtag (_,_,true,_::_)
     | Rtag (_,_,false,_::_::_) ->
       raise_errorf ~loc "unsupported '&' in row_field: %s" (string_of_core_type typ_for_error)
-    | Rtag (s,_,true,[]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc s] None]
-    | Rtag (s,_,false,[t]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc s] (Some [%e traverse t])]
+    | Rtag ({ txt; _},_,true,[]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc txt] None]
+    | Rtag ({ txt; _},_,false,[t]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc txt] (Some [%e traverse t])]
     | Rtag (_,_,false,[]) ->
       raise_errorf ~loc "impossible row_type: Rtag (_,_,false,[])"
     | Rinherit t ->

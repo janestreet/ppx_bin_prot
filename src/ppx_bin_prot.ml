@@ -243,7 +243,7 @@ module Generate_bin_size = struct
       List.fold_left row_fields ~init:[] ~f:(fun acc rf ->
         match rf with
         | Rtag (_, _, true, _) -> acc
-        | Rtag (cnstr, _, false, tp :: _) ->
+        | Rtag ({ txt = cnstr; _ }, _, false, tp :: _) ->
           let size_args =
             match bin_size_type full_type_name tp.ptyp_loc tp with
             | `Fun fun_expr -> eapply ~loc fun_expr [ [%expr args ] ]
@@ -518,13 +518,13 @@ module Generate_bin_write = struct
   and bin_write_variant full_type_name loc row_fields =
     let matchings =
       List.map row_fields ~f:(function
-        | Rtag (cnstr, _, true, _) | Rtag (cnstr, _, false, []) ->
+        | Rtag ({txt = cnstr; _ }, _, true, _) | Rtag ({ txt = cnstr; _ }, _, false, []) ->
           case ~lhs:(ppat_variant  ~loc cnstr None) ~guard:None
             ~rhs:[%expr
               Bin_prot.Write.bin_write_variant_int buf ~pos
                 [%e eint ~loc (Ocaml_common.Btype.hash_variant cnstr) ]
             ]
-        | Rtag (cnstr, _, false, tp :: _) ->
+        | Rtag ({ txt = cnstr; _ }, _, false, tp :: _) ->
           let write_args =
             match bin_write_type full_type_name tp.ptyp_loc tp with
             | `Fun fun_expr -> [%expr [%e fun_expr] buf ~pos args ]
@@ -864,7 +864,7 @@ module Generate_bin_read = struct
           | `Expr expr -> expr
           | `None -> raise_nvm
       and loop_one next t = function
-        | Rtag (cnstr, _, is_constant, tps) ->
+        | Rtag ({ txt = cnstr; _ }, _, is_constant, tps) ->
           let rhs =
             match is_constant, tps with
             | false, arg_tp :: _ ->
@@ -877,7 +877,8 @@ module Generate_bin_read = struct
               pexp_variant ~loc cnstr None
           in
           let this_mc =
-            case ~lhs:(pint ~loc (Ocaml_common.Btype.hash_variant cnstr)) ~guard:None ~rhs
+            case ~lhs:(pint ~loc (Ocaml_common.Btype.hash_variant cnstr))
+              ~guard:None ~rhs
           in
           add_mc next this_mc t
         | Rinherit ty ->
