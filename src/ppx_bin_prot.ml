@@ -139,6 +139,44 @@ end = struct
         (Caml.Printexc.get_callstack 256 |> Caml.Printexc.raw_backtrace_to_string)
 end
 
+
+(* +-----------------------------------------------------------------+
+   | Generator for the types of the generated bin_prot functions     |
+   +-----------------------------------------------------------------+ *)
+
+let type_declaration_variables td =
+  List.map td.ptype_params ~f:get_type_param_name
+
+let parameterized_constructor
+  (constructor: longident) (vars: string loc list) : core_type =
+  let loc = Location.none in
+  let vars = List.map vars ~f:(fun var -> ptyp_var ~loc var.txt) in
+  ptyp_constr ~loc { txt=constructor ; loc } vars
+
+let function_type_from_parameters
+  (constructor: longident) (vars: string loc list)
+  (ty: core_type) : core_type =
+  let loc = Location.none in
+  List.fold_right vars ~init:ty ~f:(
+    fun var ty ->
+      let var = ptyp_var ~loc var.txt in
+      let arg = ptyp_constr ~loc { txt=constructor ; loc } [var] in
+      ptyp_arrow ~loc Nolabel arg ty )
+
+let generalize_for_variables
+  (vars: string loc list) (ty: core_type) : core_type =
+  if List.is_empty vars then ty
+  else ptyp_poly ~loc:Location.none vars ty
+
+let generate_io_type ~loc
+  (td: type_declaration) (constructor: longident) : core_type =
+  let vars = type_declaration_variables td in
+  let t_ty = parameterized_constructor (lident td.ptype_name.txt) vars in
+  ptyp_constr ~loc { txt=constructor ; loc } [t_ty]
+  |> function_type_from_parameters constructor vars
+  |> generalize_for_variables vars
+
+
 (* +-----------------------------------------------------------------+
    | Generator for size computation of OCaml-values for bin_prot     |
    +-----------------------------------------------------------------+ *)
@@ -405,8 +443,14 @@ module Generate_bin_size = struct
   let bin_size_td ~loc ~path td =
     let body = sizer_body_of_td ~path td in
     let tparam_patts = vars_of_params td ~prefix:"_size_of_" |> patts_of_vars in
+    let pat = pvar ~loc @@ "bin_size_" ^ td.ptype_name.txt in
+    let pat_with_type =
+      let constructor = Ldot (Ldot (Lident "Bin_prot", "Size"), "sizer") in
+      let ty = generate_io_type ~loc td constructor in
+      ppat_constraint ~loc pat ty
+    in
     value_binding ~loc
-      ~pat:(pvar ~loc @@ "bin_size_" ^ td.ptype_name.txt)
+      ~pat:pat_with_type
       ~expr:(eabstract ~loc tparam_patts body)
 
   let bin_size ~loc ~path (rec_flag, tds) =
@@ -685,9 +729,16 @@ module Generate_bin_write = struct
     let body = writer_body_of_td ~path td in
     let size_name  = "bin_size_"  ^ td.ptype_name.txt in
     let write_name = "bin_write_" ^ td.ptype_name.txt in
+
     let write_binding =
       let tparam_patts = vars_of_params td ~prefix:"_write_" |> patts_of_vars in
-      value_binding ~loc ~pat:(pvar ~loc write_name)
+      let pat = pvar ~loc write_name in
+      let pat_with_type =
+        let constructor =  Ldot (Ldot (Lident "Bin_prot", "Write"), "writer") in
+        let ty = generate_io_type ~loc td constructor in
+        ppat_constraint ~loc pat ty
+      in
+      value_binding ~loc ~pat:pat_with_type
         ~expr:(eabstract ~loc tparam_patts body)
     in
     let writer_binding =
@@ -1134,8 +1185,8 @@ module Generate_bin_read = struct
     | Other ->
       variant_wrong_type ~loc full_type_name
 
-  let read_and_vtag_read_bindings ~loc ~read_name ~vtag_read_name ~full_type_name
-        ~(td_class : Td_class.t) ~args ~oc_body =
+  let read_and_vtag_read_bindings ~read_binding_type ~loc ~read_name ~vtag_read_name
+      ~full_type_name ~(td_class : Td_class.t) ~args ~oc_body =
     let read_binding =
       let body =
         match td_class with
@@ -1148,8 +1199,15 @@ module Generate_bin_read = struct
             alias_or_fun expr [%expr fun buf ~pos_ref -> [%e expr] buf ~pos_ref ]
           | `Open body -> [%expr fun buf ~pos_ref -> [%e body] ]
       in
-      let func = eabstract ~loc (patts_of_vars args) body in
-      value_binding ~loc ~pat:(pvar ~loc read_name) ~expr:func
+      let pat = pvar ~loc read_name in
+      let pat_with_type =
+        match read_binding_type with
+        | None -> pat
+        | Some ty -> ppat_constraint ~loc pat ty
+      in
+      value_binding ~loc
+        ~pat:pat_with_type
+        ~expr:(eabstract ~loc (patts_of_vars args) body)
     in
     let vtag_read_binding =
       value_binding ~loc
@@ -1173,10 +1231,14 @@ module Generate_bin_read = struct
     let oc_body = reader_body_of_td td full_type_name in
     let read_name      =   "bin_read_" ^ td.ptype_name.txt        in
     let vtag_read_name = "__bin_read_" ^ td.ptype_name.txt ^ "__" in
+    let read_binding_type =
+      let constructor =  Ldot (Ldot (Lident "Bin_prot", "Read"), "reader") in
+      Some (generate_io_type ~loc td constructor)
+    in
     let read_binding, vtag_read_binding =
       let args = vars_of_params td ~prefix:"_of__" in
-      read_and_vtag_read_bindings ~loc ~read_name ~vtag_read_name ~full_type_name
-        ~td_class:(Td_class.of_td td) ~args ~oc_body
+      read_and_vtag_read_bindings ~read_binding_type ~loc ~read_name ~vtag_read_name
+        ~full_type_name ~td_class:(Td_class.of_td td) ~args ~oc_body
     in
     let vars = vars_of_params td ~prefix:"bin_reader_" in
     let read =
@@ -1228,8 +1290,8 @@ module Generate_bin_read = struct
     let vtag_read_name = "vtag_read" in
     let read_binding, vtag_read_binding =
       let oc_body = bin_read_type_toplevel full_type_name loc ty ~full_type:ty in
-      read_and_vtag_read_bindings ~loc ~read_name ~vtag_read_name ~full_type_name
-        ~td_class:(Td_class.of_core_type ty) ~args:[] ~oc_body
+      read_and_vtag_read_bindings ~read_binding_type:None ~loc ~read_name ~vtag_read_name
+        ~full_type_name ~td_class:(Td_class.of_core_type ty) ~args:[] ~oc_body
     in
     pexp_let ~loc Nonrecursive [vtag_read_binding]
       (pexp_let ~loc Nonrecursive [read_binding]
