@@ -60,7 +60,7 @@ let shape_annotate_provisionally ~loc ~name (x:expression) =
     match name with
     | Other_expression e -> e
     | String_literal s ->
-        [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
+      [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
   in
   [%expr Bin_prot.Shape.annotate_provisionally [%e name] [%e x]]
 
@@ -69,7 +69,7 @@ let shape_basetype ~loc ~uuid (xs:expression list) =
     match uuid with
     | Other_expression e -> e
     | String_literal s ->
-        [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
+      [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
   in
   app_list ~loc [%expr Bin_prot.Shape.basetype [%e uuid]] xs
 
@@ -98,7 +98,7 @@ let of_type : (
     | Rtag (_,_,false,[]) ->
       raise_errorf ~loc "impossible row_type: Rtag (_,_,false,[])"
     | Rinherit t ->
-       [%expr Bin_prot.Shape.inherit_ [%e loc_string t.ptyp_loc] [%e traverse t]]
+      [%expr Bin_prot.Shape.inherit_ [%e loc_string t.ptyp_loc] [%e traverse t]]
 
   and traverse typ =
     let loc = typ.ptyp_loc in
@@ -189,13 +189,14 @@ end = struct
     expr
 
   let gen =
-    Deriving.Generator.make Deriving.Args.(empty
-                                             +> arg "annotate_provisionally"
-                                                  ((map ~f:string_literal (estring __))
-                                                   ||| (map ~f:other_expression __))
-                                             +> arg "basetype"
-                                                  ((map ~f:string_literal (estring __))
-                                                   ||| (map ~f:other_expression __))
+    Deriving.Generator.make Deriving.Args.(
+      empty
+      +> arg "annotate_provisionally"
+           ((map ~f:string_literal (estring __))
+            ||| (map ~f:other_expression __))
+      +> arg "basetype"
+           ((map ~f:string_literal (estring __))
+            ||| (map ~f:other_expression __))
     ) (fun ~loc ~path:_ (rec_flag, tds) annotation_opt basetype_opt ->
       let context =
         match rec_flag with
@@ -213,17 +214,22 @@ end = struct
       in
       let () =
         match annotation_opt,basetype_opt with
-        | Some _,Some _ -> raise_errorf ~loc "cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]"
+        | Some _,Some _ ->
+          raise_errorf ~loc
+            "cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]"
         | _ -> ()
       in
       let () =
         match tds,annotation_opt with
-        | ([] | _::_::_), Some _ -> raise_errorf ~loc "unexpected [~annotate_provisionally] on multi type-declaration"
+        | ([] | _::_::_), Some _ ->
+          raise_errorf ~loc
+            "unexpected [~annotate_provisionally] on multi type-declaration"
         | _ -> ()
       in
       let () =
         match tds,basetype_opt with
-        | ([] | _::_::_), Some _ -> raise_errorf ~loc "unexpected [~basetype] on multi type-declaration"
+        | ([] | _::_::_), Some _ ->
+          raise_errorf ~loc "unexpected [~basetype] on multi type-declaration"
         | _ -> ()
       in
       let annotate_f : (expression -> expression) =
@@ -263,9 +269,9 @@ end = struct
       let expr =
         match basetype_opt with
         | Some uuid ->
-           mk_exprs (fun ~tname:_ ~args -> shape_basetype ~loc ~uuid args)
+          mk_exprs (fun ~tname:_ ~args -> shape_basetype ~loc ~uuid args)
         | None ->
-           [%expr
+          [%expr
             let _group =
               Bin_prot.Shape.group [%e loc_string loc] [%e elist ~loc tagged_schemes]
             in
