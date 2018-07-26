@@ -177,6 +177,52 @@ let generate_io_type ~loc
   |> generalize_for_variables vars
 
 
+let types_in_decl_body (td: type_declaration) : core_type list =
+  begin
+    match td.ptype_manifest with
+      | None -> []
+      | Some t -> [t]
+  end
+  @
+  begin
+    match td.ptype_kind with
+    | Ptype_variant constrs ->
+      List.concat_map constrs ~f:(fun constr ->
+        match constr.pcd_res with
+        | None -> []
+        | Some t -> [t]
+      )
+    | Ptype_record labels ->
+      List.map labels ~f:(fun label -> label.pld_type)
+    | Ptype_open | Ptype_abstract -> []
+  end
+
+
+(* Determines whether or not the generated code associated with
+   a type declaration should include explicit type signatures.
+   In particular, no explicit type signature should be added when
+   polymorphic variants are involved.
+   See comments in "https://github.com/janestreet/ppx_bin_prot/pull/7" *)
+
+let should_omit_type_signatures (td: type_declaration) =
+  let rec aux ct =
+    match ct.ptyp_desc with
+      | Ptyp_any -> false
+      | Ptyp_var _ -> false
+      | Ptyp_arrow (_, t, t') -> aux t || aux t'
+      | Ptyp_tuple ts -> List.exists ts ~f:aux
+      | Ptyp_constr (_, ts) -> List.exists ts ~f:aux
+      | Ptyp_object _ -> true
+      | Ptyp_class _ -> true
+      | Ptyp_alias (t, _) -> aux t
+      | Ptyp_variant _ -> true
+      | Ptyp_poly (_, t) -> aux t
+      | Ptyp_package _ -> true
+      | Ptyp_extension _ -> true
+  in
+  List.exists (types_in_decl_body td) ~f:aux
+
+
 (* +-----------------------------------------------------------------+
    | Generator for size computation of OCaml-values for bin_prot     |
    +-----------------------------------------------------------------+ *)
@@ -445,9 +491,11 @@ module Generate_bin_size = struct
     let tparam_patts = vars_of_params td ~prefix:"_size_of_" |> patts_of_vars in
     let pat = pvar ~loc @@ "bin_size_" ^ td.ptype_name.txt in
     let pat_with_type =
-      let constructor = Ldot (Ldot (Lident "Bin_prot", "Size"), "sizer") in
-      let ty = generate_io_type ~loc td constructor in
-      ppat_constraint ~loc pat ty
+      if should_omit_type_signatures td then pat
+      else
+        let constructor = Ldot (Ldot (Lident "Bin_prot", "Size"), "sizer") in
+        let ty = generate_io_type ~loc td constructor in
+        ppat_constraint ~loc pat ty
     in
     value_binding ~loc
       ~pat:pat_with_type
@@ -734,9 +782,11 @@ module Generate_bin_write = struct
       let tparam_patts = vars_of_params td ~prefix:"_write_" |> patts_of_vars in
       let pat = pvar ~loc write_name in
       let pat_with_type =
-        let constructor =  Ldot (Ldot (Lident "Bin_prot", "Write"), "writer") in
-        let ty = generate_io_type ~loc td constructor in
-        ppat_constraint ~loc pat ty
+        if should_omit_type_signatures td then pat
+        else
+          let constructor =  Ldot (Ldot (Lident "Bin_prot", "Write"), "writer") in
+          let ty = generate_io_type ~loc td constructor in
+          ppat_constraint ~loc pat ty
       in
       value_binding ~loc ~pat:pat_with_type
         ~expr:(eabstract ~loc tparam_patts body)
@@ -1232,8 +1282,10 @@ module Generate_bin_read = struct
     let read_name      =   "bin_read_" ^ td.ptype_name.txt        in
     let vtag_read_name = "__bin_read_" ^ td.ptype_name.txt ^ "__" in
     let read_binding_type =
-      let constructor =  Ldot (Ldot (Lident "Bin_prot", "Read"), "reader") in
-      Some (generate_io_type ~loc td constructor)
+      if should_omit_type_signatures td then None
+      else
+        let constructor =  Ldot (Ldot (Lident "Bin_prot", "Read"), "reader") in
+        Some (generate_io_type ~loc td constructor)
     in
     let read_binding, vtag_read_binding =
       let args = vars_of_params td ~prefix:"_of__" in
