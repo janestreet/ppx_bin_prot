@@ -1,0 +1,14 @@
+open Bin_prot.Std
+
+#verbose true;;
+
+module Simple = struct
+  type 'a t = C of int t * string t [@@deriving bin_io]
+end
+
+[%%expect{|
+Line _, characters 27-33:
+Error: This expression has type string sizer = string -> int
+       but an expression was expected of type int sizer = int -> int
+       Type string is not compatible with type int
+|}]
