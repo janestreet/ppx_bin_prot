@@ -17,9 +17,8 @@ module Sig = struct
     in
     Deriving.Generator.make Deriving.Args.empty mk_sig
 
-  let mk name_format type_constr ?(wrap_result=fun ~loc:_ x -> x) td =
+  let mk_typ ?(wrap_result=fun ~loc:_ x -> x) type_constr td =
     let loc = td.ptype_loc in
-    let name = Loc.map ~f:(Printf.sprintf name_format) td.ptype_name in
     let id = Longident.parse type_constr in
     let wrap_type ~loc t =
       ptyp_constr ~loc (Located.mk ~loc id) [t]
@@ -28,14 +27,18 @@ module Sig = struct
       wrap_type ~loc:td.ptype_name.loc
         (wrap_result ~loc (core_type_of_type_declaration td))
     in
-    let typ =
-      List.fold_right
-        td.ptype_params
-        ~init:result_type
-        ~f:(fun (tp, _variance) acc ->
-          let loc = tp.ptyp_loc in
-          ptyp_arrow ~loc Nolabel (wrap_type ~loc tp) acc)
-    in
+    List.fold_right
+      td.ptype_params
+      ~init:result_type
+      ~f:(fun (tp, _variance) acc ->
+        let loc = tp.ptyp_loc in
+        ptyp_arrow ~loc Nolabel (wrap_type ~loc tp) acc)
+  ;;
+
+  let mk name_format type_constr ?wrap_result td =
+    let loc = td.ptype_loc in
+    let name = Loc.map ~f:(Printf.sprintf name_format) td.ptype_name in
+    let typ = mk_typ ?wrap_result type_constr td in
     psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[])
 
   let bin_write =
@@ -140,88 +143,35 @@ end = struct
 end
 
 
-(* +-----------------------------------------------------------------+
-   | Generator for the types of the generated bin_prot functions     |
-   +-----------------------------------------------------------------+ *)
-
-let type_declaration_variables td =
-  List.map td.ptype_params ~f:get_type_param_name
-
-let parameterized_constructor
-  (constructor: longident) (vars: string loc list) : core_type =
-  let loc = Location.none in
-  let vars = List.map vars ~f:(fun var -> ptyp_var ~loc var.txt) in
-  ptyp_constr ~loc { txt=constructor ; loc } vars
-
-let function_type_from_parameters
-  (constructor: longident) (vars: string loc list)
-  (ty: core_type) : core_type =
-  let loc = Location.none in
-  List.fold_right vars ~init:ty ~f:(
-    fun var ty ->
-      let var = ptyp_var ~loc var.txt in
-      let arg = ptyp_constr ~loc { txt=constructor ; loc } [var] in
-      ptyp_arrow ~loc Nolabel arg ty )
-
-let generalize_for_variables
-  (vars: string loc list) (ty: core_type) : core_type =
-  if List.is_empty vars then ty
-  else ptyp_poly ~loc:Location.none vars ty
-
-let generate_io_type ~loc
-  (td: type_declaration) (constructor: longident) : core_type =
-  let vars = type_declaration_variables td in
-  let t_ty = parameterized_constructor (lident td.ptype_name.txt) vars in
-  ptyp_constr ~loc { txt=constructor ; loc } [t_ty]
-  |> function_type_from_parameters constructor vars
-  |> generalize_for_variables vars
-
-
-let types_in_decl_body (td: type_declaration) : core_type list =
-  begin
-    match td.ptype_manifest with
-      | None -> []
-      | Some t -> [t]
-  end
-  @
-  begin
-    match td.ptype_kind with
-    | Ptype_variant constrs ->
-      List.concat_map constrs ~f:(fun constr ->
-        match constr.pcd_res with
-        | None -> []
-        | Some t -> [t]
-      )
-    | Ptype_record labels ->
-      List.map labels ~f:(fun label -> label.pld_type)
-    | Ptype_open | Ptype_abstract -> []
-  end
-
+let generate_poly_type ~loc td constructor =
+  ptyp_poly ~loc
+    (List.map td.ptype_params ~f:get_type_param_name)
+    (Sig.mk_typ constructor td)
 
 (* Determines whether or not the generated code associated with
    a type declaration should include explicit type signatures.
    In particular, no explicit type signature should be added when
    polymorphic variants are involved.
    See comments in "https://github.com/janestreet/ppx_bin_prot/pull/7" *)
-
-let should_omit_type_signatures (td: type_declaration) =
-  let rec aux ct =
-    match ct.ptyp_desc with
-      | Ptyp_any -> false
-      | Ptyp_var _ -> false
-      | Ptyp_arrow (_, t, t') -> aux t || aux t'
-      | Ptyp_tuple ts -> List.exists ts ~f:aux
-      | Ptyp_constr (_, ts) -> List.exists ts ~f:aux
-      | Ptyp_object _ -> true
-      | Ptyp_class _ -> true
-      | Ptyp_alias (t, _) -> aux t
-      | Ptyp_variant _ -> true
-      | Ptyp_poly (_, t) -> aux t
-      | Ptyp_package _ -> true
-      | Ptyp_extension _ -> true
+let should_omit_type_signatures =
+  let module M = struct exception E end in
+  let has_variant =
+    object
+      inherit Ast_traverse.iter as super
+      method! core_type ct =
+        match ct.ptyp_desc with
+        | Ptyp_variant _ -> Exn.raise_without_backtrace M.E
+        | _ -> super#core_type ct
+    end
   in
-  List.exists (types_in_decl_body td) ~f:aux
-
+  fun td ->
+    match td.ptype_kind with
+    | Ptype_variant _ | Ptype_record _
+    | Ptype_open -> false
+    | Ptype_abstract ->
+      match td.ptype_manifest with
+      | None -> false
+      | Some body -> try has_variant#core_type body; false with M.E -> true
 
 (* +-----------------------------------------------------------------+
    | Generator for size computation of OCaml-values for bin_prot     |
@@ -493,9 +443,8 @@ module Generate_bin_size = struct
     let pat_with_type =
       if should_omit_type_signatures td then pat
       else
-        let constructor = Ldot (Ldot (Lident "Bin_prot", "Size"), "sizer") in
-        let ty = generate_io_type ~loc td constructor in
-        ppat_constraint ~loc pat ty
+        ppat_constraint ~loc pat
+          (generate_poly_type ~loc td "Bin_prot.Size.sizer")
     in
     value_binding ~loc
       ~pat:pat_with_type
@@ -784,9 +733,8 @@ module Generate_bin_write = struct
       let pat_with_type =
         if should_omit_type_signatures td then pat
         else
-          let constructor =  Ldot (Ldot (Lident "Bin_prot", "Write"), "writer") in
-          let ty = generate_io_type ~loc td constructor in
-          ppat_constraint ~loc pat ty
+          ppat_constraint ~loc pat
+            (generate_poly_type ~loc td "Bin_prot.Write.writer")
       in
       value_binding ~loc ~pat:pat_with_type
         ~expr:(eabstract ~loc tparam_patts body)
@@ -1283,9 +1231,7 @@ module Generate_bin_read = struct
     let vtag_read_name = "__bin_read_" ^ td.ptype_name.txt ^ "__" in
     let read_binding_type =
       if should_omit_type_signatures td then None
-      else
-        let constructor =  Ldot (Ldot (Lident "Bin_prot", "Read"), "reader") in
-        Some (generate_io_type ~loc td constructor)
+      else Some (generate_poly_type ~loc td "Bin_prot.Read.reader")
     in
     let read_binding, vtag_read_binding =
       let args = vars_of_params td ~prefix:"_of__" in
