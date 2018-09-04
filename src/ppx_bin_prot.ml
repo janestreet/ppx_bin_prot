@@ -143,17 +143,22 @@ end = struct
 end
 
 
-let generate_poly_type ~loc td constructor =
+let generate_poly_type ?wrap_result ~loc td constructor =
   ptyp_poly ~loc
     (List.map td.ptype_params ~f:get_type_param_name)
-    (Sig.mk_typ constructor td)
+    (Sig.mk_typ ?wrap_result constructor td)
 
 (* Determines whether or not the generated code associated with
    a type declaration should include explicit type signatures.
-   In particular, no explicit type signature should be added when
+
+   In particular, we'd rather not add an explicit type signature when
    polymorphic variants are involved.
-   See comments in "https://github.com/janestreet/ppx_bin_prot/pull/7" *)
-let should_omit_type_signatures =
+   As discussed in https://github.com/janestreet/ppx_bin_prot/pull/7
+
+   However, if we have mutually recursive type declarations involving polymorphic type
+   constructors where we add a type declaration to one of them, we need it on all of them,
+   otherwise we'll generate ill-typed code. *)
+let would_rather_omit_type_signatures =
   let module M = struct exception E end in
   let has_variant =
     object
@@ -436,12 +441,12 @@ module Generate_bin_size = struct
     make_fun ~loc ~don't_expand:(td_is_nil td) res
 
   (* Generate code from type definitions *)
-  let bin_size_td ~loc ~path td =
+  let bin_size_td ~can_omit_type_annot ~loc ~path td =
     let body = sizer_body_of_td ~path td in
     let tparam_patts = vars_of_params td ~prefix:"_size_of_" |> patts_of_vars in
     let pat = pvar ~loc @@ "bin_size_" ^ td.ptype_name.txt in
     let pat_with_type =
-      if should_omit_type_signatures td then pat
+      if can_omit_type_annot then pat
       else
         ppat_constraint ~loc pat
           (generate_poly_type ~loc td "Bin_prot.Size.sizer")
@@ -452,7 +457,8 @@ module Generate_bin_size = struct
 
   let bin_size ~loc ~path (rec_flag, tds) =
     let rec_flag = really_recursive rec_flag tds in
-    let bindings = List.map tds ~f:(bin_size_td ~loc ~path) in
+    let can_omit_type_annot = List.for_all ~f:would_rather_omit_type_signatures tds in
+    let bindings = List.map tds ~f:(bin_size_td ~can_omit_type_annot ~loc ~path) in
     pstr_value ~loc rec_flag bindings
 end
 
@@ -722,7 +728,7 @@ module Generate_bin_write = struct
     alias_or_fun call [%expr fun v -> [%e eapply ~loc call [ [%expr v] ]]]
 
   (* Generate code from type definitions *)
-  let bin_write_td ~loc ~path td =
+  let bin_write_td ~can_omit_type_annot ~loc ~path td =
     let body = writer_body_of_td ~path td in
     let size_name  = "bin_size_"  ^ td.ptype_name.txt in
     let write_name = "bin_write_" ^ td.ptype_name.txt in
@@ -731,7 +737,7 @@ module Generate_bin_write = struct
       let tparam_patts = vars_of_params td ~prefix:"_write_" |> patts_of_vars in
       let pat = pvar ~loc write_name in
       let pat_with_type =
-        if should_omit_type_signatures td then pat
+        if can_omit_type_annot then pat
         else
           ppat_constraint ~loc pat
             (generate_poly_type ~loc td "Bin_prot.Write.writer")
@@ -754,8 +760,9 @@ module Generate_bin_write = struct
 
   let bin_write ~loc ~path (rec_flag, tds) =
     let rec_flag = really_recursive rec_flag tds in
+    let can_omit_type_annot = List.for_all tds ~f:would_rather_omit_type_signatures in
     let write_bindings, writer_bindings =
-      List.map tds ~f:(bin_write_td ~loc ~path)
+      List.map tds ~f:(bin_write_td ~can_omit_type_annot ~loc ~path)
       |> List.unzip
     in
     Generate_bin_size.bin_size ~loc ~path (rec_flag, tds)
@@ -1183,7 +1190,9 @@ module Generate_bin_read = struct
     | Other ->
       variant_wrong_type ~loc full_type_name
 
-  let read_and_vtag_read_bindings ~read_binding_type ~loc ~read_name ~vtag_read_name
+  let read_and_vtag_read_bindings ~loc
+      ~read_name ~read_binding_type
+      ~vtag_read_name ~vtag_read_binding_type
       ~full_type_name ~(td_class : Td_class.t) ~args ~oc_body =
     let read_binding =
       let body =
@@ -1208,8 +1217,14 @@ module Generate_bin_read = struct
         ~expr:(eabstract ~loc (patts_of_vars args) body)
     in
     let vtag_read_binding =
+      let pat = pvar ~loc vtag_read_name in
+      let pat_with_type =
+        match vtag_read_binding_type with
+        | None -> pat
+        | Some ty -> ppat_constraint ~loc pat ty
+      in
       value_binding ~loc
-        ~pat:(pvar ~loc vtag_read_name)
+        ~pat:pat_with_type
         ~expr:(eabstract ~loc (patts_of_vars args)
                  (vtag_reader ~loc ~td_class ~full_type_name ~oc_body))
     in
@@ -1223,19 +1238,24 @@ module Generate_bin_read = struct
       }
     ]
 
-  let bin_read_td ~loc:_ ~path td =
+  let bin_read_td ~can_omit_type_annot ~loc:_ ~path td =
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let oc_body = reader_body_of_td td full_type_name in
     let read_name      =   "bin_read_" ^ td.ptype_name.txt        in
     let vtag_read_name = "__bin_read_" ^ td.ptype_name.txt ^ "__" in
-    let read_binding_type =
-      if should_omit_type_signatures td then None
-      else Some (generate_poly_type ~loc td "Bin_prot.Read.reader")
+    let vtag_read_binding_type, read_binding_type =
+      if can_omit_type_annot then
+        None, None
+      else
+        Some (generate_poly_type ~loc td "Bin_prot.Read.reader"
+                ~wrap_result:(fun ~loc t -> [%type: int -> [%t t]])),
+        Some (generate_poly_type ~loc td "Bin_prot.Read.reader")
     in
     let read_binding, vtag_read_binding =
       let args = vars_of_params td ~prefix:"_of__" in
-      read_and_vtag_read_bindings ~read_binding_type ~loc ~read_name ~vtag_read_name
+      read_and_vtag_read_bindings ~loc ~read_name ~read_binding_type
+        ~vtag_read_name ~vtag_read_binding_type
         ~full_type_name ~td_class:(Td_class.of_td td) ~args ~oc_body
     in
     let vars = vars_of_params td ~prefix:"bin_reader_" in
@@ -1264,8 +1284,9 @@ module Generate_bin_read = struct
        Location.raise_errorf ~loc
          "bin_prot doesn't support multiple nonrecursive definitions."
      | _ -> ());
+    let can_omit_type_annot = List.for_all tds ~f:would_rather_omit_type_signatures in
     let vtag_read_bindings, read_and_reader_bindings =
-      List.map tds ~f:(fun td -> bin_read_td td ~loc ~path)
+      List.map tds ~f:(bin_read_td ~can_omit_type_annot ~loc ~path)
       |> List.unzip
     in
     let read_bindings, reader_bindings = List.unzip read_and_reader_bindings in
@@ -1288,7 +1309,8 @@ module Generate_bin_read = struct
     let vtag_read_name = "vtag_read" in
     let read_binding, vtag_read_binding =
       let oc_body = bin_read_type_toplevel full_type_name loc ty ~full_type:ty in
-      read_and_vtag_read_bindings ~read_binding_type:None ~loc ~read_name ~vtag_read_name
+      read_and_vtag_read_bindings ~loc ~read_name ~read_binding_type:None
+        ~vtag_read_name ~vtag_read_binding_type:None
         ~full_type_name ~td_class:(Td_class.of_core_type ty) ~args:[] ~oc_body
     in
     pexp_let ~loc Nonrecursive [vtag_read_binding]
