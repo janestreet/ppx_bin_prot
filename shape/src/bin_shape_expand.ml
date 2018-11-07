@@ -55,14 +55,14 @@ type string_literal_or_other_expression =
 let string_literal f s = f (String_literal s)
 let other_expression f e = f (Other_expression e)
 
-let shape_annotate_provisionally ~loc ~name (x:expression) =
+let shape_annotate ~loc ~name (x:expression) =
   let name =
     match name with
     | Other_expression e -> e
     | String_literal s ->
       [%expr Bin_prot.Shape.Uuid.of_string [%e estring ~loc s]]
   in
-  [%expr Bin_prot.Shape.annotate_provisionally [%e name] [%e x]]
+  [%expr Bin_prot.Shape.annotate [%e name] [%e x]]
 
 let shape_basetype ~loc ~uuid (xs:expression list) =
   let uuid =
@@ -191,13 +191,17 @@ end = struct
   let gen =
     Deriving.Generator.make Deriving.Args.(
       empty
+      +> arg "annotate"
+           ((map ~f:string_literal (estring __))
+            ||| (map ~f:other_expression __))
       +> arg "annotate_provisionally"
            ((map ~f:string_literal (estring __))
             ||| (map ~f:other_expression __))
       +> arg "basetype"
            ((map ~f:string_literal (estring __))
             ||| (map ~f:other_expression __))
-    ) (fun ~loc ~path:_ (rec_flag, tds) annotation_opt basetype_opt ->
+    ) (fun ~loc ~path:_ (rec_flag, tds)
+        annotation_opt annotation_provisionally_opt basetype_opt ->
       let context =
         match rec_flag with
         | Recursive -> Context.create tds
@@ -213,17 +217,25 @@ end = struct
         ppat_tuple ~loc pats
       in
       let () =
+        match annotation_provisionally_opt with
+        | Some _ ->
+          raise_errorf ~loc
+            "[~annotate_provisionally] was renamed to [~annotate]. \
+             Please use that."
+        | None -> ()
+      in
+      let () =
         match annotation_opt,basetype_opt with
         | Some _,Some _ ->
           raise_errorf ~loc
-            "cannot write both [bin_shape ~annotate_provisionally] and [bin_shape ~basetype]"
+            "cannot write both [bin_shape ~annotate] and [bin_shape ~basetype]"
         | _ -> ()
       in
       let () =
         match tds,annotation_opt with
         | ([] | _::_::_), Some _ ->
           raise_errorf ~loc
-            "unexpected [~annotate_provisionally] on multi type-declaration"
+            "unexpected [~annotate] on multi type-declaration"
         | _ -> ()
       in
       let () =
@@ -235,7 +247,7 @@ end = struct
       let annotate_f : (expression -> expression) =
         match annotation_opt with
         | None -> (fun e -> e)
-        | Some name -> shape_annotate_provisionally ~loc ~name
+        | Some name -> shape_annotate ~loc ~name
       in
       let tagged_schemes = List.filter_map tds ~f:(fun td ->
         let {Location.loc;txt=tname} = td.ptype_name in

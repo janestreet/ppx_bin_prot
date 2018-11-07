@@ -2,7 +2,7 @@ open Core
 
 module Shape = struct
   include Bin_prot.Shape
-  let annotate_provisionally s xs = annotate_provisionally (Uuid.of_string s) xs
+  let annotate s xs = annotate (Uuid.of_string s) xs
   let basetype s x = basetype (Uuid.of_string s) x
 end
 
@@ -1070,7 +1070,7 @@ end
 (* Captures all kinds of shape *)
 module Complex_type = struct
   type t0 = A | B of t0 [@@deriving bin_shape]
-  let bin_shape_t0 = Shape.annotate_provisionally "t0" bin_shape_t0
+  let bin_shape_t0 = Shape.annotate "t0" bin_shape_t0
   type 'a t1 = Z | Q of 'a t1  [@@deriving bin_shape]
   type base_types =
     { a : unit;
@@ -1531,7 +1531,7 @@ module Examples_where_shape_exps_are_constructed_by_hand = struct
       let my_int = Tid.of_string  "my_int" in
       let _group = group (Location.of_string "group") [
         foo, [], (
-          annotate_provisionally "blah" (rec_app my_int [])
+          annotate "blah" (rec_app my_int [])
         );
         my_int, [], (
           bin_shape_int
@@ -1624,10 +1624,10 @@ module Annotations = struct
   module D1 = struct
 
     type dollars = float [@@deriving bin_io]
-    let bin_shape_dollars = Shape.annotate_provisionally "dollars" bin_shape_dollars
+    let bin_shape_dollars = Shape.annotate "dollars" bin_shape_dollars
 
     type dollars2 = float [@@deriving bin_io]
-    let bin_shape_dollars2 = Shape.annotate_provisionally "dollars2" bin_shape_dollars2
+    let bin_shape_dollars2 = Shape.annotate "dollars2" bin_shape_dollars2
 
     let%test_unit _ = ensure_all_different [
       [%bin_shape: float];
@@ -1638,7 +1638,7 @@ module Annotations = struct
     type dollars_copy = float [@@deriving bin_io]
     (* Annotations are not generative. A different type with the same annotation has the
        same shape. *)
-    let bin_shape_dollars_copy = Shape.annotate_provisionally "dollars" bin_shape_dollars_copy
+    let bin_shape_dollars_copy = Shape.annotate "dollars" bin_shape_dollars_copy
 
     let%test_unit _ = ensure_all_same [
       [%bin_shape: dollars];
@@ -1658,7 +1658,7 @@ module Annotations = struct
     end
     module Annotation = struct
       type t = int [@@deriving bin_io]
-      let bin_shape_t = Shape.annotate_provisionally "qaz" bin_shape_t
+      let bin_shape_t = Shape.annotate "qaz" bin_shape_t
     end
     module New_base = struct
       type t = int [@@deriving bin_io]
@@ -1680,11 +1680,11 @@ module Annotation_Syntax = struct
 
     module Without_syntax = struct
       type t = float [@@deriving bin_shape]
-      let bin_shape_t = Shape.annotate_provisionally "dollars" bin_shape_t
+      let bin_shape_t = Shape.annotate "dollars" bin_shape_t
     end
 
     module With_syntax = struct
-      type t = float [@@deriving bin_shape ~annotate_provisionally:"dollars"]
+      type t = float [@@deriving bin_shape ~annotate:"dollars"]
     end
 
     let%test_unit _ = ensure_all_same [
@@ -1694,7 +1694,7 @@ module Annotation_Syntax = struct
 
     module Bin_io_with_annotated_shape = struct
 
-      type t = float [@@deriving bin_io ~annotate_provisionally:"dollars"]
+      type t = float [@@deriving bin_io ~annotate:"dollars"]
 
       let%test_unit _ = ensure_all_same [
         [%bin_shape: Without_syntax.t];
@@ -1706,7 +1706,7 @@ module Annotation_Syntax = struct
     module Bin_io_with_annotated_shape_broken = struct
 
 
-      type t = float [@@deriving bin_shape ~annotate_provisionally:"dollars", bin_io]
+      type t = float [@@deriving bin_shape ~annotate:"dollars", bin_io]
 
       let%test_unit _ = ensure_all_different [ (* BUG *)
         [%bin_shape: Without_syntax.t];
