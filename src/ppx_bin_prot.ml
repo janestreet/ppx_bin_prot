@@ -236,7 +236,7 @@ module Generate_bin_size = struct
             | `Fun fun_expr -> eapply ~loc fun_expr [e_name]
             | `Match cases  -> pexp_match ~loc e_name cases
           in
-          [%expr Pervasives.(+) size [%e expr] ]
+          [%expr Bin_prot.Common.(+) size [%e expr] ]
         in
         let patt = mk_patt loc v_name el in
         if List.is_empty rest then [patt], v_expr
