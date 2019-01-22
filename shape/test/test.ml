@@ -1085,7 +1085,7 @@ module Complex_type = struct
       k : int64 option;
       l : int64 list;
       m : int64 array;
-      o : Bigstring.t;
+      o : Bigstring.Stable.V1.t;
     }
   [@@deriving bin_shape]
   type 'a all_stuff =
