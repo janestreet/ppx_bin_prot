@@ -51,15 +51,28 @@ module Sig = struct
   let bin_read =
     mk_sig_generator
       [ mk "bin_read_%s"     "Bin_prot.Read.reader"
-      ; mk "__bin_read_%s__" "Bin_prot.Read.reader"
+      ; mk                   "__bin_read_%s__" "Bin_prot.Read.reader"
           ~wrap_result:(fun ~loc t -> [%type: int -> [%t t]])
       ; mk "bin_reader_%s"   "Bin_prot.Type_class.reader"
       ]
 
   let bin_type_class =
     mk_sig_generator
-      [ mk "bin_%s" "Bin_prot.Type_class.t"
-      ]
+      [ mk "bin_%s" "Bin_prot.Type_class.t" ]
+
+  let named =
+    let mk_named_sig ~loc ~path (rf, tds) =
+      match
+        mk_named_sig ~loc ~sg_name:"Bin_prot.Binable.S"
+              ~handle_polymorphic_variant:true tds
+      with
+      | Some incl -> [psig_include ~loc incl]
+      | None ->
+        List.concat_map
+          [ Bin_shape_expand.sig_gen; bin_write; bin_read; bin_type_class ]
+          ~f:(fun gen -> Deriving.Generator.apply ~name:"unused" gen ~loc ~path (rf, tds) [])
+    in
+    Deriving.Generator.make Deriving.Args.empty mk_named_sig
 end
 
 (* +-----------------------------------------------------------------+
@@ -1438,6 +1451,12 @@ let bin_type_class =
     ~sig_type_decl:Sig.bin_type_class
     ~extension:Generate_tp_class.extension
 
+let bin_io_named_sig =
+  Deriving.add "bin_io.named_sig.prevent using this in source files"
+    ~sig_type_decl:Sig.named
+
 let bin_io =
   let set = [bin_shape; bin_write; bin_read; bin_type_class] in
-  Deriving.add_alias "bin_io" set ~str_type_decl:(List.rev set)
+  Deriving.add_alias "bin_io" set
+    ~sig_type_decl:[bin_io_named_sig]
+    ~str_type_decl:(List.rev set)
