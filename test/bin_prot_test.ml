@@ -955,6 +955,24 @@ module Common = struct
   type els = el array
   [@@deriving bin_io]
 
+  module Wildcard : sig
+    type _ transparent = int
+    [@@deriving bin_io]
+
+    type _ opaque
+    [@@deriving bin_io]
+
+    val opaque_examples : int opaque list
+  end = struct
+    type _ transparent = int
+    [@@deriving bin_io]
+
+    type 'a opaque = 'a option
+    [@@deriving bin_io]
+
+    let opaque_examples = [None; Some 0; Some 1]
+  end
+
   let test =
     "Bin_prot_common" >:::
       [
@@ -1065,6 +1083,22 @@ module Inline = struct
         [%bin_writer     : [`Foo | `Bar of int | `Bla of int * string] Common.singleton_record]
         [%bin_reader     : [`Foo | `Bar of int | `Bla of int * string] Common.singleton_record]
         [%bin_type_class : [`Foo | `Bar of int | `Bla of int * string] Common.singleton_record];
+
+      "transparent wildcard" >:::
+      compatible
+        [ 1; 2; 3 ]
+        (Common.Wildcard.bin_transparent bin_string)
+        [%bin_writer : string Common.Wildcard.transparent]
+        [%bin_reader : string Common.Wildcard.transparent]
+        [%bin_type_class : string Common.Wildcard.transparent];
+
+      "opaque wildcard" >:::
+      compatible
+        Common.Wildcard.opaque_examples
+        (Common.Wildcard.bin_opaque bin_int)
+        [%bin_writer : int Common.Wildcard.opaque]
+        [%bin_reader : int Common.Wildcard.opaque]
+        [%bin_type_class : int Common.Wildcard.opaque];
     ]
   ;;
 end

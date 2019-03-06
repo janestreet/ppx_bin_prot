@@ -202,6 +202,7 @@ end = struct
             ||| (map ~f:other_expression __))
     ) (fun ~loc ~path:_ (rec_flag, tds)
         annotation_opt annotation_provisionally_opt basetype_opt ->
+      let tds = List.map tds ~f:name_type_params_in_td in
       let context =
         match rec_flag with
         | Recursive -> Context.create tds
@@ -306,6 +307,7 @@ module Signature : sig
 end = struct
 
   let of_td td : signature_item =
+    let td = name_type_params_in_td td in
     let {Location.loc;txt=tname} = td.ptype_name in
     let name = bin_shape_ tname in
     let tvars = tvars_of_def td in

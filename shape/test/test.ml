@@ -1815,3 +1815,23 @@ module Inline_records = struct
   ]
 
 end
+
+module Wildcard : sig
+  type _ abstract [@@deriving bin_shape]
+
+  type _ concrete [@@deriving bin_shape]
+end = struct
+  type _ abstract [@@deriving bin_shape]
+
+  type 'a concrete = 'a list [@@deriving bin_shape]
+
+  let%test_unit _ = ensure_all_same [
+    [%bin_shape: int abstract];
+    [%bin_shape: string abstract];
+  ]
+
+  let%test_unit _ = ensure_all_different [
+    [%bin_shape: int concrete];
+    [%bin_shape: string concrete];
+  ]
+end
