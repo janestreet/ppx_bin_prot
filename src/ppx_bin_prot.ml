@@ -1200,7 +1200,7 @@ module Generate_bin_read = struct
     | Polymorphic_variant { all_atoms } -> begin
         match oc_body with
         | `Open body when all_atoms ->
-          [%expr fun buf ~pos_ref:_ vint -> [%e body] ]
+          [%expr fun _buf ~pos_ref:_ vint -> [%e body] ]
         | `Open body -> [%expr fun buf ~pos_ref vint -> [%e body] ]
         | _ -> assert false (* impossible *)
       end
