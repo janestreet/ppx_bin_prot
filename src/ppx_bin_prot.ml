@@ -308,7 +308,7 @@ module Generate_bin_size = struct
             ~guard:None
             ~rhs:[%expr
               let size_args = [%e size_args] in
-              Pervasives.(+) size_args 4
+              Bin_prot.Common.(+) size_args 4
             ]
           :: acc
         | Rtag (_, _, false, []) -> acc (* Impossible, let the OCaml compiler fail *)
