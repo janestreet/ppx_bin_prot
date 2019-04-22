@@ -12,12 +12,12 @@ let ( @@ ) a b = a b
 
 module Sig = struct
   let mk_sig_generator combinators =
-    let mk_sig ~loc:_ ~path:_ (_rf, tds) =
+    let mk_sig ~ctxt:_ (_rf, tds) =
       List.concat_map tds ~f:(fun td ->
         let td = name_type_params_in_td td in
         List.map combinators ~f:(fun mk -> mk td))
     in
-    Deriving.Generator.make Deriving.Args.empty mk_sig
+    Deriving.Generator.V2.make Deriving.Args.empty mk_sig
 
   let mk_typ ?(wrap_result=fun ~loc:_ x -> x) type_constr td =
     let loc = td.ptype_loc in
@@ -63,7 +63,8 @@ module Sig = struct
       [ mk "bin_%s" "Bin_prot.Type_class.t" ]
 
   let named =
-    let mk_named_sig ~loc ~path (rf, tds) =
+    let mk_named_sig ~ctxt (rf, tds) =
+      let loc = Expansion_context.Deriver.derived_item_loc ctxt in
       match
         mk_named_sig ~loc ~sg_name:"Bin_prot.Binable.S"
               ~handle_polymorphic_variant:true tds
@@ -72,9 +73,9 @@ module Sig = struct
       | None ->
         List.concat_map
           [ Bin_shape_expand.sig_gen; bin_write; bin_read; bin_type_class ]
-          ~f:(fun gen -> Deriving.Generator.apply ~name:"unused" gen ~loc ~path (rf, tds) [])
+          ~f:(fun gen -> Deriving.Generator.apply ~name:"unused" gen ~ctxt (rf, tds) [])
     in
-    Deriving.Generator.make Deriving.Args.empty mk_named_sig
+    Deriving.Generator.V2.make Deriving.Args.empty mk_named_sig
 end
 
 (* +-----------------------------------------------------------------+
