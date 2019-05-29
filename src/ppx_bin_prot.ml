@@ -12,10 +12,12 @@ let ( @@ ) a b = a b
 
 module Sig = struct
   let mk_sig_generator combinators =
-    let mk_sig ~loc:_ ~path:_ (_rf, tds) =
-      List.concat_map tds ~f:(fun td -> List.map combinators ~f:(fun mk -> mk td))
+    let mk_sig ~ctxt:_ (_rf, tds) =
+      List.concat_map tds ~f:(fun td ->
+        let td = name_type_params_in_td td in
+        List.map combinators ~f:(fun mk -> mk td))
     in
-    Deriving.Generator.make Deriving.Args.empty mk_sig
+    Deriving.Generator.V2.make Deriving.Args.empty mk_sig
 
   let mk_typ ?(wrap_result=fun ~loc:_ x -> x) type_constr td =
     let loc = td.ptype_loc in
@@ -61,7 +63,8 @@ module Sig = struct
       [ mk "bin_%s" "Bin_prot.Type_class.t" ]
 
   let named =
-    let mk_named_sig ~loc ~path (rf, tds) =
+    let mk_named_sig ~ctxt (rf, tds) =
+      let loc = Expansion_context.Deriver.derived_item_loc ctxt in
       match
         mk_named_sig ~loc ~sg_name:"Bin_prot.Binable.S"
               ~handle_polymorphic_variant:true tds
@@ -70,9 +73,9 @@ module Sig = struct
       | None ->
         List.concat_map
           [ Bin_shape_expand.sig_gen; bin_write; bin_read; bin_type_class ]
-          ~f:(fun gen -> Deriving.Generator.apply ~name:"unused" gen ~loc ~path (rf, tds) [])
+          ~f:(fun gen -> Deriving.Generator.apply ~name:"unused" gen ~ctxt (rf, tds) [])
     in
-    Deriving.Generator.make Deriving.Args.empty mk_named_sig
+    Deriving.Generator.V2.make Deriving.Args.empty mk_named_sig
 end
 
 (* +-----------------------------------------------------------------+
@@ -306,7 +309,7 @@ module Generate_bin_size = struct
             ~guard:None
             ~rhs:[%expr
               let size_args = [%e size_args] in
-              Pervasives.(+) size_args 4
+              Bin_prot.Common.(+) size_args 4
             ]
           :: acc
         | Rtag (_, _, false, []) -> acc (* Impossible, let the OCaml compiler fail *)
@@ -469,6 +472,7 @@ module Generate_bin_size = struct
       ~expr:(eabstract ~loc tparam_patts body)
 
   let bin_size ~loc ~path (rec_flag, tds) =
+    let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     let can_omit_type_annot = List.for_all ~f:would_rather_omit_type_signatures tds in
     let bindings = List.map tds ~f:(bin_size_td ~can_omit_type_annot ~loc ~path) in
@@ -772,6 +776,7 @@ module Generate_bin_write = struct
     (write_binding, writer_binding)
 
   let bin_write ~loc ~path (rec_flag, tds) =
+    let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     let can_omit_type_annot = List.for_all tds ~f:would_rather_omit_type_signatures in
     let write_bindings, writer_bindings =
@@ -1196,7 +1201,7 @@ module Generate_bin_read = struct
     | Polymorphic_variant { all_atoms } -> begin
         match oc_body with
         | `Open body when all_atoms ->
-          [%expr fun buf ~pos_ref:_ vint -> [%e body] ]
+          [%expr fun _buf ~pos_ref:_ vint -> [%e body] ]
         | `Open body -> [%expr fun buf ~pos_ref vint -> [%e body] ]
         | _ -> assert false (* impossible *)
       end
@@ -1290,6 +1295,7 @@ module Generate_bin_read = struct
 
   (* Generate code from type definitions *)
   let bin_read ~loc ~path (rec_flag, tds) =
+    let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     (match rec_flag, tds with
      | Nonrecursive, _ :: _ :: _ ->
@@ -1393,6 +1399,7 @@ module Generate_tp_class = struct
 
   (* Generate code from type definitions *)
   let bin_tp_class ~loc ~path:_ (_rec_flag, tds) =
+    let tds = List.map tds ~f:name_type_params_in_td in
     let bindings = List.map tds ~f:bin_tp_class_td in
     [ pstr_value ~loc Nonrecursive bindings ]
 
