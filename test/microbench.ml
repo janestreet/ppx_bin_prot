@@ -1,5 +1,5 @@
 open Core
-open Core_bench.Std
+open Core_bench
 
 let write_bin_prot writer buf ~pos a =
   let len = writer.Bin_prot.Type_class.size a in
