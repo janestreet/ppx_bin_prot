@@ -83,8 +83,9 @@ end
    +-----------------------------------------------------------------+ *)
 
 let atoms_in_row_fields row_fields =
-  List.exists row_fields ~f:(function
-    | Rtag (_, _, is_constant, _) -> is_constant
+  List.exists row_fields ~f:(fun row_field ->
+    match row_field.prf_desc with
+    | Rtag (_, is_constant, _) -> is_constant
     | Rinherit _ -> false)
 ;;
 
@@ -296,9 +297,9 @@ module Generate_bin_size = struct
   and bin_size_variant full_type_name loc row_fields =
     let nonatom_matchings =
       List.fold_left row_fields ~init:[] ~f:(fun acc rf ->
-        match rf with
-        | Rtag (_, _, true, _) -> acc
-        | Rtag ({ txt = cnstr; _ }, _, false, tp :: _) ->
+        match rf.prf_desc with
+        | Rtag (_, true, _) -> acc
+        | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
           let size_args =
             match bin_size_type full_type_name tp.ptyp_loc tp with
             | `Fun fun_expr -> eapply ~loc fun_expr [ [%expr args ] ]
@@ -312,7 +313,7 @@ module Generate_bin_size = struct
               Bin_prot.Common.(+) size_args 4
             ]
           :: acc
-        | Rtag (_, _, false, []) -> acc (* Impossible, let the OCaml compiler fail *)
+        | Rtag (_, false, []) -> acc (* Impossible, let the OCaml compiler fail *)
         | Rinherit ty ->
           let loc = ty.ptyp_loc in
           match ty.ptyp_desc with
@@ -581,14 +582,15 @@ module Generate_bin_write = struct
   (* Conversion of variant types *)
   and bin_write_variant full_type_name loc row_fields =
     let matchings =
-      List.map row_fields ~f:(function
-        | Rtag ({txt = cnstr; _ }, _, true, _) | Rtag ({ txt = cnstr; _ }, _, false, []) ->
+      List.map row_fields ~f:(fun row_field ->
+        match row_field.prf_desc with
+        | Rtag ({txt = cnstr; _ }, true, _) | Rtag ({ txt = cnstr; _ }, false, []) ->
           case ~lhs:(ppat_variant  ~loc cnstr None) ~guard:None
             ~rhs:[%expr
               Bin_prot.Write.bin_write_variant_int buf ~pos
                 [%e eint ~loc (Ocaml_common.Btype.hash_variant cnstr) ]
             ]
-        | Rtag ({ txt = cnstr; _ }, _, false, tp :: _) ->
+        | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
           let write_args =
             match bin_write_type full_type_name tp.ptyp_loc tp with
             | `Fun fun_expr -> [%expr [%e fun_expr] buf ~pos args ]
@@ -937,8 +939,9 @@ module Generate_bin_read = struct
           | `Matches mcs -> mk_check_vint mcs
           | `Expr expr -> expr
           | `None -> raise_nvm
-      and loop_one next t = function
-        | Rtag ({ txt = cnstr; _ }, _, is_constant, tps) ->
+      and loop_one next t = fun row_field ->
+        match row_field.prf_desc with
+        | Rtag ({ txt = cnstr; _ }, is_constant, tps) ->
           let rhs =
             match is_constant, tps with
             | false, arg_tp :: _ ->
@@ -1141,8 +1144,9 @@ module Generate_bin_read = struct
       match ty.ptyp_desc with
       | Ptyp_variant (row_fields, _, _) ->
         let all_atoms =
-          List.for_all row_fields ~f:(function
-            | Rtag (_, _, is_constant, _) -> is_constant
+          List.for_all row_fields ~f:(fun row_field ->
+            match row_field.prf_desc with
+            | Rtag (_, is_constant, _) -> is_constant
             | Rinherit _ -> false)
         in
         Polymorphic_variant { all_atoms }

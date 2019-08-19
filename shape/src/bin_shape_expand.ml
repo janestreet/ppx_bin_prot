@@ -89,13 +89,13 @@ let of_type : (
 ) = fun ~allow_free_vars ~context ->
 
   let rec traverse_row ~loc ~typ_for_error (row : row_field) : expression =
-    match row with
-    | Rtag (_,_,true,_::_)
-    | Rtag (_,_,false,_::_::_) ->
+    match row.prf_desc with
+    | Rtag (_,true,_::_)
+    | Rtag (_,false,_::_::_) ->
       raise_errorf ~loc "unsupported '&' in row_field: %s" (string_of_core_type typ_for_error)
-    | Rtag ({ txt; _},_,true,[]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc txt] None]
-    | Rtag ({ txt; _},_,false,[t]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc txt] (Some [%e traverse t])]
-    | Rtag (_,_,false,[]) ->
+    | Rtag ({ txt; _},true,[]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc txt] None]
+    | Rtag ({ txt; _},false,[t]) -> [%expr Bin_prot.Shape.constr [%e estring ~loc txt] (Some [%e traverse t])]
+    | Rtag (_,false,[]) ->
       raise_errorf ~loc "impossible row_type: Rtag (_,_,false,[])"
     | Rinherit t ->
       [%expr Bin_prot.Shape.inherit_ [%e loc_string t.ptyp_loc] [%e traverse t]]
