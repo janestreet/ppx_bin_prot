@@ -39,7 +39,7 @@ module Annotation_on_multi_type_dec = struct
 end
 
 [%%expect{|
-Line _, characters 2-83:
+Line _, characters _-_:
 Error: ppx_bin_shape: unexpected [~annotate] on multi type-declaration
 |}]
 
@@ -59,7 +59,7 @@ module Annotation_syntax_uuid_wrong_type = struct
 end
 
 [%%expect{|
-Line _, characters 47-51:
+Line _, characters _-_:
 Error: This expression has type bool but an expression was expected of type
          Shape.Uuid.t
 |}]
@@ -148,7 +148,7 @@ module No_such_bin_shape_syntax = struct
 end
 
 [%%expect{|
-Line _, characters 44-47:
+Line _, characters _-_:
 Error: Ppxlib.Deriving: generator 'bin_shape' doesn't accept argument 'floob'
 |}]
 
@@ -165,7 +165,7 @@ module Annotation_requires_shape_on_subtypes = struct
 end
 
 [%%expect{|
-Line _, characters 11-22:
+Line _, characters _-_:
 Error: Unbound value Shapeless.bin_shape_t
 |}]
 
@@ -174,7 +174,7 @@ module Not_allowed_both_annotation_and_basetype_syntax = struct
 end
 
 [%%expect{|
-Line _, characters 2-65:
+Line _, characters _-_:
 Error: ppx_bin_shape: cannot write both [bin_shape ~annotate] and [bin_shape ~basetype]
 |}]
 
@@ -203,7 +203,7 @@ module Basetype_on_multi_type_dec = struct
 end
 
 [%%expect{|
-Line _, characters 2-83:
+Line _, characters _-_:
 Error: ppx_bin_shape: unexpected [~basetype] on multi type-declaration
 |}]
 
@@ -223,7 +223,7 @@ module Basetype_syntax_uuid_wrong_type = struct
 end
 
 [%%expect{|
-Line _, characters 55-59:
+Line _, characters _-_:
 Error: This expression has type bool but an expression was expected of type
          Shape.Uuid.t
 |}]
@@ -233,6 +233,6 @@ module Cannot_evaluate_shape_containing_type_vars = struct
 end
 
 [%%expect{|
-Line _, characters 23-25:
+Line _, characters _-_:
 Error: ppx_bin_shape: unexpected free type variable: 'a
 |}]
