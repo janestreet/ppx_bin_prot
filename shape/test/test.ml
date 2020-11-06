@@ -355,7 +355,7 @@ module Mutually_recursive_types = struct
 
   type t1 = TT of t1 | TU of u1 | TB
   and u1 = UT of t1 | UU of u1 | UB
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let%test_unit _ = ensure_all_different [
     [%bin_shape: t1];
@@ -364,7 +364,7 @@ module Mutually_recursive_types = struct
 
   type u2 = UT of t2 | UU of u2 | UB (* swap order: t,u *)
   and t2 = TT of t2 | TU of u2 | TB
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let%test_unit _ = ensure_all_same [
     [%bin_shape: t1];
@@ -378,7 +378,7 @@ module Mutually_recursive_types = struct
 
   type t3 = TT of u3 | TU of t3 | TB (* swap types w.r.t. t1 *)
   and u3 = UT of t3 | UU of u3 | UB
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let%test_unit _ = ensure_all_different [
     [%bin_shape: t1];
@@ -587,7 +587,7 @@ module Non_regular = struct
 
   (* Types [a] and [b] make no `base' use of their polymorphic variable ['a] *)
   type 'a a = A of 'a a
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   (* But we regard applications to different types as having different shapes *)
   let%test_unit _ = ensure_all_different [
@@ -610,7 +610,7 @@ module Non_regular = struct
 
   (* And here is an example of non-regular recursion *)
   type 'a b = B of 'a list b
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let%test_unit _ = ensure_all_different [
     [%bin_shape: int   b];
@@ -791,14 +791,14 @@ module Unrolling_bad_0 = struct
     let module M = struct
 
       type t1 =
-      [ `A
-      | `B of t1
-      ] [@@deriving bin_shape]
+        [ `A
+        | `B of t1
+        ] [@@deriving bin_shape]
 
       type t2 =
-      [ `A
-      | `B of [ `A | `B of t2 ]
-      ] [@@deriving bin_shape]
+        [ `A
+        | `B of [ `A | `B of t2 ]
+        ] [@@deriving bin_shape]
 
       let () =
         ensure_shape [%bin_shape: t1]
@@ -919,22 +919,22 @@ end
 module Cyclic_app = struct
 
   type ('a, 'b) t =
-  | A of ('b, 'a) t
-  | B
-      [@@deriving bin_shape]
+    | A of ('b, 'a) t
+    | B
+  [@@deriving bin_shape]
 
   let%test_unit _ =
     ensure_shape [%bin_shape: (int, string) t]
       ~expect:Canonical.(create (apply (
         dvariant ["A", [recurse 0 [var 1; var 0]];
-                 "B", []]
+                  "B", []]
       ) [int; string]))
 
   let%test_unit _ =
     ensure_shape [%bin_shape: (string, int) t]
       ~expect:Canonical.(create (apply (
         dvariant ["A", [recurse 0 [var 1; var 0]];
-                 "B", []]
+                  "B", []]
       ) [string; int]))
 
   (* So these types are not equivalent. *)
@@ -1227,7 +1227,7 @@ module Example_inner_outer1 = struct
   (* .. within the same mut-block *)
   type 'a inner = Tight of 'a inner | Loose of 'a
   and outer = Z of outer | S of outer inner
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let exp = [%bin_shape: outer]
 
@@ -1256,9 +1256,9 @@ module Example_inner_outer2 = struct
 
   (* .. within  sequence of mut-blocks *)
   type 'a inner = Tight of 'a inner | Loose of 'a
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
   type outer = Z of outer | S of outer inner
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let exp = [%bin_shape: outer]
 
@@ -1293,7 +1293,7 @@ module Example_mut_recursion_with_extra_aliases = struct
   type t = A of t1 | B of u
   and t1 = t
   and  u = C of t1 | D of u
-      [@@deriving bin_shape]
+  [@@deriving bin_shape]
 
   let exp = [%bin_shape: t1]
 
@@ -1319,7 +1319,7 @@ module Example_mut_recursion_with_extra_aliases = struct
     type t = A of t | B of u (* changed [t1] -> [t] ...*)
     and t1 = t
     and  u = C of t1 | D of u
-        [@@deriving bin_shape]
+    [@@deriving bin_shape]
 
     let exp_variation = [%bin_shape: t1]
 
@@ -1341,20 +1341,20 @@ end
 module Tricky = struct
 
   type 'b u =
-  | Uu of 'b u
-  | Ub of 'b
-      [@@deriving bin_shape]
+    | Uu of 'b u
+    | Ub of 'b
+  [@@deriving bin_shape]
 
   type 'a t =
-  | Tt of 'a t
-  | Ta of 'a
-  | Tu of 'a u
-      [@@deriving bin_shape]
+    | Tt of 'a t
+    | Ta of 'a
+    | Tu of 'a u
+  [@@deriving bin_shape]
 
   type knot =
-  | Base
-  | Knot of knot t
-      [@@deriving bin_shape]
+    | Base
+    | Knot of knot t
+  [@@deriving bin_shape]
 
   let exp = [%bin_shape: knot]
 
@@ -1387,15 +1387,15 @@ module Test_tid_clash = struct
 
   module Other = struct
     type 'a t =
-    | Tt of 'a t
-    | Ta of 'a
-        [@@deriving bin_shape]
+      | Tt of 'a t
+      | Ta of 'a
+    [@@deriving bin_shape]
   end
 
   type t =
-  | Base
-  | Knot of t Other.t
-      [@@deriving bin_shape]
+    | Base
+    | Knot of t Other.t
+  [@@deriving bin_shape]
 
   let exp = [%bin_shape: t]
 
@@ -1462,7 +1462,7 @@ module Examples_where_shape_exps_are_constructed_by_hand = struct
 
     type t = A of t | B of u
     and  u = C of t | D of u
-        [@@deriving bin_shape]
+    [@@deriving bin_shape]
 
     let exp = [%bin_shape: t]
 
@@ -1808,7 +1808,7 @@ module Inline_records = struct
   let%test_unit _ = ensure_all_different [
     [%bin_shape: t_using_inline_record];
     [%bin_shape: r1];
-    ]
+  ]
 
   let%test_unit _ = ensure_all_same [
     [%bin_shape: t];

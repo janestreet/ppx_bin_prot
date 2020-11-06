@@ -1,6 +1,6 @@
 open Core
 module Shape = Bin_prot.Shape
-
+;;
 #verbose true
 
 module type Interface_for_types_named_t = sig

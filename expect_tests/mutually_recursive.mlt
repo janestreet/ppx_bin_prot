@@ -1,9 +1,9 @@
 open Bin_prot.Std
-
+;;
 #verbose true;;
 
 module Test = struct
- type ('a, 'm) branch =
+  type ('a, 'm) branch =
     { branch_on : 'm
     ; value : float
     ; if_lt : ('a, 'm) t'

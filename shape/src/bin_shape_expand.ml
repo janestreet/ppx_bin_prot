@@ -203,101 +203,101 @@ end = struct
             ||| (map ~f:other_expression __))
     ) (fun ~loc ~path:_ (rec_flag, tds)
         annotation_opt annotation_provisionally_opt basetype_opt ->
-      let tds = List.map tds ~f:name_type_params_in_td in
-      let context =
-        match rec_flag with
-        | Recursive -> Context.create tds
-        | Nonrecursive -> Context.create []
-      in
-      let mk_pat mk_ =
-        let pats = List.map tds ~f:(fun td ->
+        let tds = List.map tds ~f:name_type_params_in_td in
+        let context =
+          match rec_flag with
+          | Recursive -> Context.create tds
+          | Nonrecursive -> Context.create []
+        in
+        let mk_pat mk_ =
+          let pats = List.map tds ~f:(fun td ->
+            let {Location.loc;txt=tname} = td.ptype_name in
+            let name = mk_ tname in
+            ppat_var ~loc (Loc.make name ~loc)
+          )
+          in
+          ppat_tuple ~loc pats
+        in
+        let () =
+          match annotation_provisionally_opt with
+          | Some _ ->
+            raise_errorf ~loc
+              "[~annotate_provisionally] was renamed to [~annotate]. \
+               Please use that."
+          | None -> ()
+        in
+        let () =
+          match annotation_opt,basetype_opt with
+          | Some _,Some _ ->
+            raise_errorf ~loc
+              "cannot write both [bin_shape ~annotate] and [bin_shape ~basetype]"
+          | _ -> ()
+        in
+        let () =
+          match tds,annotation_opt with
+          | ([] | _::_::_), Some _ ->
+            raise_errorf ~loc
+              "unexpected [~annotate] on multi type-declaration"
+          | _ -> ()
+        in
+        let () =
+          match tds,basetype_opt with
+          | ([] | _::_::_), Some _ ->
+            raise_errorf ~loc "unexpected [~basetype] on multi type-declaration"
+          | _ -> ()
+        in
+        let annotate_f : (expression -> expression) =
+          match annotation_opt with
+          | None -> (fun e -> e)
+          | Some name -> shape_annotate ~loc ~name
+        in
+        let tagged_schemes = List.filter_map tds ~f:(fun td ->
           let {Location.loc;txt=tname} = td.ptype_name in
-          let name = mk_ tname in
-          ppat_var ~loc (Loc.make name ~loc)
+          let body_opt  = expr_of_td ~loc ~context td in
+          match body_opt with
+          | None -> None
+          | Some body ->
+            let tvars = tvars_of_def td in
+            let formals =
+              List.map tvars ~f:(fun tvar -> shape_vid ~loc ~tvar)
+            in
+            [%expr ([%e shape_tid ~loc ~tname],
+                    [%e elist ~loc formals],
+                    [%e body])]
+            |> fun x -> Some x
         )
         in
-        ppat_tuple ~loc pats
-      in
-      let () =
-        match annotation_provisionally_opt with
-        | Some _ ->
-          raise_errorf ~loc
-            "[~annotate_provisionally] was renamed to [~annotate]. \
-             Please use that."
-        | None -> ()
-      in
-      let () =
-        match annotation_opt,basetype_opt with
-        | Some _,Some _ ->
-          raise_errorf ~loc
-            "cannot write both [bin_shape ~annotate] and [bin_shape ~basetype]"
-        | _ -> ()
-      in
-      let () =
-        match tds,annotation_opt with
-        | ([] | _::_::_), Some _ ->
-          raise_errorf ~loc
-            "unexpected [~annotate] on multi type-declaration"
-        | _ -> ()
-      in
-      let () =
-        match tds,basetype_opt with
-        | ([] | _::_::_), Some _ ->
-          raise_errorf ~loc "unexpected [~basetype] on multi type-declaration"
-        | _ -> ()
-      in
-      let annotate_f : (expression -> expression) =
-        match annotation_opt with
-        | None -> (fun e -> e)
-        | Some name -> shape_annotate ~loc ~name
-      in
-      let tagged_schemes = List.filter_map tds ~f:(fun td ->
-        let {Location.loc;txt=tname} = td.ptype_name in
-        let body_opt  = expr_of_td ~loc ~context td in
-        match body_opt with
-        | None -> None
-        | Some body ->
-          let tvars = tvars_of_def td in
-          let formals =
-            List.map tvars ~f:(fun tvar -> shape_vid ~loc ~tvar)
+        let mk_exprs mk_init =
+          let exprs =
+            List.map tds ~f:(fun td ->
+              let {Location.loc;txt=tname} = td.ptype_name in
+              let tvars = tvars_of_def td in
+              let args = List.map tvars ~f:(fun tvar -> evar ~loc tvar) in
+              List.fold_right tvars
+                ~init:(mk_init ~tname ~args)
+                ~f:(fun tvar acc -> [%expr fun [%p pvar ~loc tvar] -> [%e acc]])
+            )
           in
-          [%expr ([%e shape_tid ~loc ~tname],
-                  [%e elist ~loc formals],
-                  [%e body])]
-          |> fun x -> Some x
-      )
-      in
-      let mk_exprs mk_init =
-        let exprs =
-          List.map tds ~f:(fun td ->
-            let {Location.loc;txt=tname} = td.ptype_name in
-            let tvars = tvars_of_def td in
-            let args = List.map tvars ~f:(fun tvar -> evar ~loc tvar) in
-            List.fold_right tvars
-              ~init:(mk_init ~tname ~args)
-              ~f:(fun tvar acc -> [%expr fun [%p pvar ~loc tvar] -> [%e acc]])
-          )
+          [%expr [%e pexp_tuple ~loc exprs ] ]
         in
-        [%expr [%e pexp_tuple ~loc exprs ] ]
-      in
-      let expr =
-        match basetype_opt with
-        | Some uuid ->
-          mk_exprs (fun ~tname:_ ~args -> shape_basetype ~loc ~uuid args)
-        | None ->
-          [%expr
-            let _group =
-              Bin_prot.Shape.group [%e loc_string loc] [%e elist ~loc tagged_schemes]
-            in
-            [%e mk_exprs (fun ~tname ~args ->
-              annotate_f (app_list ~loc (shape_top_app ~loc ~tname) args)
-            )]]
-      in
-      let bindings = [value_binding ~loc ~pat:(mk_pat bin_shape_)  ~expr] in
-      let structure = [
-        pstr_value ~loc Nonrecursive bindings;
-      ] in
-      structure)
+        let expr =
+          match basetype_opt with
+          | Some uuid ->
+            mk_exprs (fun ~tname:_ ~args -> shape_basetype ~loc ~uuid args)
+          | None ->
+            [%expr
+              let _group =
+                Bin_prot.Shape.group [%e loc_string loc] [%e elist ~loc tagged_schemes]
+              in
+              [%e mk_exprs (fun ~tname ~args ->
+                annotate_f (app_list ~loc (shape_top_app ~loc ~tname) args)
+              )]]
+        in
+        let bindings = [value_binding ~loc ~pat:(mk_pat bin_shape_)  ~expr] in
+        let structure = [
+          pstr_value ~loc Nonrecursive bindings;
+        ] in
+        structure)
 
 end
 

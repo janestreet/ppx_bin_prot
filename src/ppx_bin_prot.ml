@@ -67,7 +67,7 @@ module Sig = struct
       let loc = Expansion_context.Deriver.derived_item_loc ctxt in
       match
         mk_named_sig ~loc ~sg_name:"Bin_prot.Binable.S"
-              ~handle_polymorphic_variant:true tds
+          ~handle_polymorphic_variant:true tds
       with
       | Some incl -> [psig_include ~loc incl]
       | None ->
@@ -238,46 +238,46 @@ module Generate_bin_size = struct
 
   and bin_size_args
     : 'a 'b. Full_type_name.t
-    -> Location.t
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> 'b list * expression
+      -> Location.t
+      -> ('a -> core_type)
+      -> (Location.t -> string -> 'a -> 'b)
+      -> 'a list
+      -> 'b list * expression
     = fun full_type_name loc get_tp mk_patt tps ->
-    let rec loop i = function
-      | el :: rest ->
-        let tp = get_tp el in
-        let v_name = "v" ^ Int.to_string i in
-        let v_expr =
-          let e_name = evar ~loc v_name in
-          let expr =
-            match bin_size_type full_type_name loc tp with
-            | `Fun fun_expr -> eapply ~loc fun_expr [e_name]
-            | `Match cases  -> pexp_match ~loc e_name cases
+      let rec loop i = function
+        | el :: rest ->
+          let tp = get_tp el in
+          let v_name = "v" ^ Int.to_string i in
+          let v_expr =
+            let e_name = evar ~loc v_name in
+            let expr =
+              match bin_size_type full_type_name loc tp with
+              | `Fun fun_expr -> eapply ~loc fun_expr [e_name]
+              | `Match cases  -> pexp_match ~loc e_name cases
+            in
+            [%expr Bin_prot.Common.(+) size [%e expr] ]
           in
-          [%expr Bin_prot.Common.(+) size [%e expr] ]
-        in
-        let patt = mk_patt loc v_name el in
-        if List.is_empty rest then [patt], v_expr
-        else
-          let patts, in_expr = loop (i + 1) rest in
+          let patt = mk_patt loc v_name el in
+          if List.is_empty rest then [patt], v_expr
+          else
+            let patts, in_expr = loop (i + 1) rest in
             patt :: patts, [%expr  let size = [%e v_expr] in [%e in_expr] ]
-      | [] -> assert false  (* impossible *)
-    in
-    loop 1 tps
+        | [] -> assert false  (* impossible *)
+      in
+      loop 1 tps
 
   and bin_size_tup_rec
     : 'a 'b. Full_type_name.t
-    -> Location.t
-    -> ('b list -> pattern)
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> _
+      -> Location.t
+      -> ('b list -> pattern)
+      -> ('a -> core_type)
+      -> (Location.t -> string -> 'a -> 'b)
+      -> 'a list
+      -> _
     = fun full_type_name loc cnv_patts get_tp mk_patt tp ->
-    let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp in
-    `Match [ case ~lhs:(cnv_patts patts) ~guard:None
-               ~rhs:[%expr let size = 0 in [%e expr] ] ]
+      let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp in
+      `Match [ case ~lhs:(cnv_patts patts) ~guard:None
+                 ~rhs:[%expr let size = 0 in [%e expr] ] ]
 
   (* Conversion of tuples *)
   and bin_size_tuple full_type_name loc l =
@@ -345,7 +345,7 @@ module Generate_bin_size = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding ~loc ~pat:(pvar ~loc @@ "_size_of_" ^ parm.txt)
           ~expr:[%expr fun _v ->
-               raise (Bin_prot.Common.Poly_rec_write [%e estring ~loc full_type_name])
+            raise (Bin_prot.Common.Poly_rec_write [%e estring ~loc full_type_name])
           ]
       in
       List.map parms ~f:mk_binding
@@ -353,11 +353,11 @@ module Generate_bin_size = struct
     match bin_size_type full_type_name loc tp with
     | `Fun fun_expr -> `Fun (pexp_let ~loc Nonrecursive bindings fun_expr)
     | `Match matchings ->
-        `Match
-          [ case ~lhs:(pvar ~loc "arg") ~guard:None
-              ~rhs:(pexp_let ~loc Nonrecursive bindings
-                      (pexp_match ~loc (evar ~loc "arg") matchings))
-          ]
+      `Match
+        [ case ~lhs:(pvar ~loc "arg") ~guard:None
+            ~rhs:(pexp_let ~loc Nonrecursive bindings
+                    (pexp_match ~loc (evar ~loc "arg") matchings))
+        ]
 
   (* Conversion of sum types *)
 
@@ -435,7 +435,7 @@ module Generate_bin_size = struct
   let bin_size_nil full_type_name loc =
     let full_type_name = Full_type_name.get_exn ~loc full_type_name in
     `Fun [%expr fun _v ->
-         raise (Bin_prot.Common.Empty_type [%e estring ~loc full_type_name]) ]
+      raise (Bin_prot.Common.Empty_type [%e estring ~loc full_type_name]) ]
 
   let make_fun ~loc ?(don't_expand=false) fun_or_match =
     match fun_or_match with
@@ -529,14 +529,14 @@ module Generate_bin_write = struct
 
   and bin_write_args
     : 'a 'b. Full_type_name.t
-    -> Location.t
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> 'b list * expression
+      -> Location.t
+      -> ('a -> core_type)
+      -> (Location.t -> string -> 'a -> 'b)
+      -> 'a list
+      -> 'b list * expression
     = fun full_type_name loc get_tp mk_patt tp ->
-    let rec loop i = function
-      | el :: rest ->
+      let rec loop i = function
+        | el :: rest ->
           let tp = get_tp el in
           let v_name = "v" ^ Int.to_string i in
           let v_expr =
@@ -550,21 +550,21 @@ module Generate_bin_write = struct
           else
             let patts, in_expr = loop (i + 1) rest in
             patt :: patts, [%expr  let pos = [%e v_expr] in [%e in_expr] ]
-      | [] -> assert false  (* impossible *)
-    in
-    loop 1 tp
+        | [] -> assert false  (* impossible *)
+      in
+      loop 1 tp
 
   and bin_write_tup_rec
     : 'a 'b. Full_type_name.t
-    -> Location.t
-    -> ('b list -> pattern)
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> _
+      -> Location.t
+      -> ('b list -> pattern)
+      -> ('a -> core_type)
+      -> (Location.t -> string -> 'a -> 'b)
+      -> 'a list
+      -> _
     = fun full_type_name loc cnv_patts get_tp mk_patt tp ->
-    let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp in
-    `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
+      let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp in
+      `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
 
   (* Conversion of tuples *)
   and bin_write_tuple full_type_name loc l =
@@ -631,7 +631,7 @@ module Generate_bin_write = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding ~loc ~pat:(pvar ~loc @@ "_write_" ^ parm.txt)
           ~expr:[%expr fun _buf ~pos:_ _v ->
-               raise (Bin_prot.Common.Poly_rec_write [%e estring ~loc full_type_name])
+            raise (Bin_prot.Common.Poly_rec_write [%e estring ~loc full_type_name])
           ]
       in
       List.map parms ~f:mk_binding
@@ -639,11 +639,11 @@ module Generate_bin_write = struct
     match bin_write_type full_type_name loc tp with
     | `Fun fun_expr -> `Fun (pexp_let ~loc Nonrecursive bindings fun_expr)
     | `Match matchings ->
-        `Match
-          [ case ~lhs:(pvar ~loc "arg") ~guard:None
-              ~rhs:(pexp_let ~loc Nonrecursive bindings
-                      (pexp_match ~loc (evar ~loc "arg") matchings))
-          ]
+      `Match
+        [ case ~lhs:(pvar ~loc "arg") ~guard:None
+            ~rhs:(pexp_let ~loc Nonrecursive bindings
+                    (pexp_match ~loc (evar ~loc "arg") matchings))
+        ]
 
   (* Conversion of sum types *)
 
@@ -711,7 +711,7 @@ module Generate_bin_write = struct
   let bin_write_nil full_type_name loc =
     let full_type_name = Full_type_name.get_exn ~loc full_type_name in
     `Fun [%expr fun _buf ~pos:_ _v ->
-         raise (Bin_prot.Common.Empty_type [%e estring ~loc full_type_name]) ]
+      raise (Bin_prot.Common.Empty_type [%e estring ~loc full_type_name]) ]
 
   let make_fun ~loc ?(don't_expand=false) fun_or_match =
     match fun_or_match with
@@ -822,7 +822,7 @@ module Generate_bin_read = struct
   let mk_abst_call loc ?(internal = false) id args =
     type_constr_conv ~loc id args
       ~f:(fun s -> let s = "bin_read_" ^ s in
-                   if internal then "__" ^ s ^ "__" else s)
+           if internal then "__" ^ s ^ "__" else s)
 
   (* Conversion of type paths *)
   let bin_read_path_fun loc id args =
@@ -1097,9 +1097,9 @@ module Generate_bin_read = struct
     let full_type_name = Full_type_name.get_exn ~loc full_type_name in
     `Closed
       [%expr  fun _buf ~pos_ref ->
-           Bin_prot.Common.raise_read_error
-             (Bin_prot.Common.ReadError.Empty_type [%e estring ~loc full_type_name])
-             !pos_ref
+        Bin_prot.Common.raise_read_error
+          (Bin_prot.Common.ReadError.Empty_type [%e estring ~loc full_type_name])
+          !pos_ref
       ]
 
 
@@ -1219,9 +1219,9 @@ module Generate_bin_read = struct
       variant_wrong_type ~loc full_type_name
 
   let read_and_vtag_read_bindings ~loc
-      ~read_name ~read_binding_type
-      ~vtag_read_name ~vtag_read_binding_type
-      ~full_type_name ~(td_class : Td_class.t) ~args ~oc_body =
+        ~read_name ~read_binding_type
+        ~vtag_read_name ~vtag_read_binding_type
+        ~full_type_name ~(td_class : Td_class.t) ~args ~oc_body =
     let read_binding =
       let body =
         match td_class with

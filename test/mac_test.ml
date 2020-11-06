@@ -102,7 +102,7 @@ let main () =
   let msg_size = float (n * end_pos) in
   printf
     "msgs: %d  msg length: %d\n\
-    write time: %.3fs  write rate: %9.2f msgs/s  write throughput: %.2f MB/s\n\
+     write time: %.3fs  write rate: %9.2f msgs/s  write throughput: %.2f MB/s\n\
     \ read time: %.3fs   read rate: %9.2f msgs/s   read throughput: %.2f MB/s\n%!"
     n end_pos
     write_time (f_n /. write_time) (msg_size /. write_time /. mb)
