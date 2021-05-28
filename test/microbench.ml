@@ -100,4 +100,4 @@ let benchs =
   ; Bench.Test.create_indexed ~name:"read float array"  ~args:lengths (read_float_array)
   ]
 
-let () = Command.run (Bench.make_command benchs)
+let () = Command_unix.run (Bench.make_command benchs)
