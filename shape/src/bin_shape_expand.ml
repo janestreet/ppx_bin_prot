@@ -3,7 +3,7 @@ open Ppxlib
 open Ast_builder.Default
 
 let raise_errorf ~loc fmt =
-  Location.raise_errorf ~loc (Caml.(^^) "ppx_bin_shape: " fmt)
+  Location.raise_errorf ~loc (Stdlib.(^^) "ppx_bin_shape: " fmt)
 
 let loc_string loc =
   [%expr Bin_prot.Shape.Location.of_string

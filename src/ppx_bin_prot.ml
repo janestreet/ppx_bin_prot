@@ -156,7 +156,7 @@ end = struct
         "Bug in ppx_bin_prot: full type name needed but not in a type declaration.\n\
          Callstack:\n\
          %s"
-        (Caml.Printexc.get_callstack 256 |> Caml.Printexc.raw_backtrace_to_string)
+        (Stdlib.Printexc.get_callstack 256 |> Stdlib.Printexc.raw_backtrace_to_string)
 end
 
 
