@@ -260,8 +260,13 @@ module Generate_bin_size = struct
 
   (* Conversion of tuples and records *)
   and bin_size_args :
-    'a 'b. Full_type_name.t -> Location.t -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b) -> 'a list -> 'b list * expression
+    'a 'b.
+      Full_type_name.t
+    -> Location.t
+    -> ('a -> core_type)
+    -> (Location.t -> string -> 'a -> 'b)
+    -> 'a list
+    -> 'b list * expression
     =
     fun full_type_name loc get_tp mk_patt tps ->
       let rec loop i = function
@@ -292,8 +297,14 @@ module Generate_bin_size = struct
       loop 1 tps
 
   and bin_size_tup_rec :
-    'a 'b. Full_type_name.t -> Location.t -> ('b list -> pattern) -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b) -> 'a list -> _
+    'a 'b.
+      Full_type_name.t
+    -> Location.t
+    -> ('b list -> pattern)
+    -> ('a -> core_type)
+    -> (Location.t -> string -> 'a -> 'b)
+    -> 'a list
+    -> _
     =
     fun full_type_name loc cnv_patts get_tp mk_patt tp ->
       let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp in
@@ -565,8 +576,13 @@ module Generate_bin_write = struct
 
   (* Conversion of tuples and records *)
   and bin_write_args :
-    'a 'b. Full_type_name.t -> Location.t -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b) -> 'a list -> 'b list * expression
+    'a 'b.
+      Full_type_name.t
+    -> Location.t
+    -> ('a -> core_type)
+    -> (Location.t -> string -> 'a -> 'b)
+    -> 'a list
+    -> 'b list * expression
     =
     fun full_type_name loc get_tp mk_patt tp ->
       let rec loop i = function
@@ -594,8 +610,14 @@ module Generate_bin_write = struct
       loop 1 tp
 
   and bin_write_tup_rec :
-    'a 'b. Full_type_name.t -> Location.t -> ('b list -> pattern) -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b) -> 'a list -> _
+    'a 'b.
+      Full_type_name.t
+    -> Location.t
+    -> ('b list -> pattern)
+    -> ('a -> core_type)
+    -> (Location.t -> string -> 'a -> 'b)
+    -> 'a list
+    -> _
     =
     fun full_type_name loc cnv_patts get_tp mk_patt tp ->
       let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp in
@@ -1581,7 +1603,6 @@ module For_f_sharp = struct
   let remove_labeled_arguments =
     object
       inherit Ast_traverse.map
-
       method! arg_label (_ : arg_label) = Nolabel
     end
   ;;

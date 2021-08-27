@@ -1,6 +1,5 @@
-open Bin_prot.Std
+open Bin_prot.Std;;
 
-;;
 #verbose true
 
 module Simple = struct

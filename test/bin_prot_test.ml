@@ -273,23 +273,16 @@ let test =
               then small_int_tests
               else
                 mk_int_test ~n:(int_of_string "0x7ffffffe") ~len:5
-                ::
-                mk_int_test ~n:(int_of_string "0x7fffffff") ~len:5
-                ::
-                mk_int_test ~n:(int_of_string "0x80000000") ~len:9
-                ::
-                mk_int_test ~n:(int_of_string "0x80000001") ~len:9
-                ::
-                mk_int_test ~n:max_int ~len:9
-                ::
-                mk_int_test ~n:(int_of_string "-0x000000007fffffff") ~len:5
-                ::
-                mk_int_test ~n:(int_of_string "-0x0000000080000000") ~len:5
-                ::
-                mk_int_test ~n:(int_of_string "-0x0000000080000001") ~len:9
-                ::
-                mk_int_test ~n:(int_of_string "-0x0000000080000002") ~len:9
-                :: mk_int_test ~n:min_int ~len:9 :: small_int_tests
+                :: mk_int_test ~n:(int_of_string "0x7fffffff") ~len:5
+                :: mk_int_test ~n:(int_of_string "0x80000000") ~len:9
+                :: mk_int_test ~n:(int_of_string "0x80000001") ~len:9
+                :: mk_int_test ~n:max_int ~len:9
+                :: mk_int_test ~n:(int_of_string "-0x000000007fffffff") ~len:5
+                :: mk_int_test ~n:(int_of_string "-0x0000000080000000") ~len:5
+                :: mk_int_test ~n:(int_of_string "-0x0000000080000001") ~len:9
+                :: mk_int_test ~n:(int_of_string "-0x0000000080000002") ~len:9
+                :: mk_int_test ~n:min_int ~len:9
+                :: small_int_tests
             in
             check_all 9 "int" Read.bin_read_int Write.bin_write_int all_int_tests;
             let bad_buf = Bigstring.of_string "\132" in
@@ -338,15 +331,12 @@ let test =
               then small_int_tests
               else
                 mk_nat0_test ~n:(int_of_string "0x7fffffff") ~len:5
-                ::
-                mk_nat0_test ~n:(int_of_string "0x80000000") ~len:5
-                ::
-                mk_nat0_test ~n:(int_of_string "0xffffffff") ~len:5
-                ::
-                mk_nat0_test ~n:(int_of_string "0x100000000") ~len:9
-                ::
-                mk_nat0_test ~n:(int_of_string "0x100000001") ~len:9
-                :: mk_nat0_test ~n:max_int ~len:9 :: small_int_tests
+                :: mk_nat0_test ~n:(int_of_string "0x80000000") ~len:5
+                :: mk_nat0_test ~n:(int_of_string "0xffffffff") ~len:5
+                :: mk_nat0_test ~n:(int_of_string "0x100000000") ~len:9
+                :: mk_nat0_test ~n:(int_of_string "0x100000001") ~len:9
+                :: mk_nat0_test ~n:max_int ~len:9
+                :: small_int_tests
             in
             check_all 9 "nat0" Read.bin_read_nat0 Write.bin_write_nat0 all_int_tests;
             let bad_buf = Bigstring.of_string "\128" in
@@ -488,20 +478,13 @@ let test =
               then small_nativeint_tests
               else
                 mk_nativeint_test ~n:0x80000000n ~len:9
-                ::
-                mk_nativeint_test ~n:0x80000001n ~len:9
-                ::
-                mk_nativeint_test ~n:(-0x80000001n) ~len:9
-                ::
-                mk_nativeint_test ~n:(-0x80000002n) ~len:9
-                ::
-                mk_nativeint_test ~n:(Nativeint.of_string "0x7ffffffffffffffe") ~len:9
-                ::
-                mk_nativeint_test ~n:(Nativeint.of_string "0x7fffffffffffffff") ~len:9
-                ::
-                mk_nativeint_test ~n:(Nativeint.of_string "-0x8000000000000001") ~len:9
-                ::
-                mk_nativeint_test ~n:(Nativeint.of_string "-0x8000000000000000") ~len:9
+                :: mk_nativeint_test ~n:0x80000001n ~len:9
+                :: mk_nativeint_test ~n:(-0x80000001n) ~len:9
+                :: mk_nativeint_test ~n:(-0x80000002n) ~len:9
+                :: mk_nativeint_test ~n:(Nativeint.of_string "0x7ffffffffffffffe") ~len:9
+                :: mk_nativeint_test ~n:(Nativeint.of_string "0x7fffffffffffffff") ~len:9
+                :: mk_nativeint_test ~n:(Nativeint.of_string "-0x8000000000000001") ~len:9
+                :: mk_nativeint_test ~n:(Nativeint.of_string "-0x8000000000000000") ~len:9
                 :: small_nativeint_tests
             in
             let size = if Sys.word_size = 32 then 5 else 9 in
