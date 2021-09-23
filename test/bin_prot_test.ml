@@ -579,66 +579,66 @@ let test =
          )
        ; ("float_array"
           >:: fun () ->
-            check_all
-              33
-              "float_array"
-              Read.bin_read_float_array
-              Write.bin_write_float_array
-              [ [| 42.; -1.; 200.; 33000. |], "[|42.; -1.; 200.; 33000.|]", 33
-              ; [||], "[||]", 1
-              ];
-            if Sys.word_size = 32
-            then (
-              let bad_buf = Bigstring.of_string "\253\000\000\032\000" in
-              "Array_too_long (float)"
-              @? expect_read_error Array_too_long 0 (fun () ->
-                Read.bin_read_float_array bad_buf ~pos_ref:(ref 0));
-              let bad_buf = Bigstring.of_string "\253\255\255\031\000" in
-              "ArrayMaximimum (float)"
-              @? expect_buffer_short (fun () ->
-                Read.bin_read_float_array bad_buf ~pos_ref:(ref 0)))
-            else (
-              let bad_buf = Bigstring.of_string "\252\000\000\000\000\000\000\064\000" in
-              "Array_too_long (float)"
-              @? expect_read_error Array_too_long 0 (fun () ->
-                Read.bin_read_float_array bad_buf ~pos_ref:(ref 0));
-              let bad_buf = Bigstring.of_string "\252\255\255\255\255\255\255\063\000" in
-              "ArrayMaximimum (float)"
-              @? expect_buffer_short (fun () ->
-                Read.bin_read_float_array bad_buf ~pos_ref:(ref 0));
-              (* Test that the binary forms of [float array] and [float_array] are the same *)
-              let arrays =
-                let rec loop acc len =
-                  if len < 0
-                  then acc
-                  else (
-                    let a = Array.init len (fun i -> float_of_int (i + len)) in
-                    let txt = Printf.sprintf "float array, len = %d" len in
-                    let buf = (len * 8) + Size.bin_size_nat0 (Nat0.unsafe_of_int len) in
-                    loop ((a, txt, buf) :: acc) (len - 1))
-                in
-                loop [] 255
-              in
-              let len = (255 * 8) + Size.bin_size_nat0 (Nat0.unsafe_of_int 255) in
-              check_all
-                len
-                "float array -> float_array"
+            ((check_all
+                33
+                "float_array"
                 Read.bin_read_float_array
-                (Write.bin_write_array Write.bin_write_float)
-                arrays;
-              check_all
-                len
-                "float_array -> float array"
-                (Read.bin_read_array Read.bin_read_float)
                 Write.bin_write_float_array
-                arrays;
-              (* Check that the canonical closures used in the short circuit test of float
-                 arrays are indeed allocated closures as opposed to [compare] for example
-                 which is a primitive.  Even if it looks like a tautology, it is not. (for
-                 example, [compare == compare] is false. *)
-              assert (bin_write_float == bin_write_float);
-              assert (bin_read_float == bin_read_float);
-              assert (bin_size_float == bin_size_float)))
+                [ [| 42.; -1.; 200.; 33000. |], "[|42.; -1.; 200.; 33000.|]", 33
+                ; [||], "[||]", 1
+                ];
+              if Sys.word_size = 32
+              then (
+                let bad_buf = Bigstring.of_string "\253\000\000\032\000" in
+                "Array_too_long (float)"
+                @? expect_read_error Array_too_long 0 (fun () ->
+                  Read.bin_read_float_array bad_buf ~pos_ref:(ref 0));
+                let bad_buf = Bigstring.of_string "\253\255\255\031\000" in
+                "ArrayMaximimum (float)"
+                @? expect_buffer_short (fun () ->
+                  Read.bin_read_float_array bad_buf ~pos_ref:(ref 0)))
+              else (
+                let bad_buf = Bigstring.of_string "\252\000\000\000\000\000\000\064\000" in
+                "Array_too_long (float)"
+                @? expect_read_error Array_too_long 0 (fun () ->
+                  Read.bin_read_float_array bad_buf ~pos_ref:(ref 0));
+                let bad_buf = Bigstring.of_string "\252\255\255\255\255\255\255\063\000" in
+                "ArrayMaximimum (float)"
+                @? expect_buffer_short (fun () ->
+                  Read.bin_read_float_array bad_buf ~pos_ref:(ref 0));
+                (* Test that the binary forms of [float array] and [float_array] are the same *)
+                let arrays =
+                  let rec loop acc len =
+                    if len < 0
+                    then acc
+                    else (
+                      let a = Array.init len (fun i -> float_of_int (i + len)) in
+                      let txt = Printf.sprintf "float array, len = %d" len in
+                      let buf = (len * 8) + Size.bin_size_nat0 (Nat0.unsafe_of_int len) in
+                      loop ((a, txt, buf) :: acc) (len - 1))
+                  in
+                  loop [] 255
+                in
+                let len = (255 * 8) + Size.bin_size_nat0 (Nat0.unsafe_of_int 255) in
+                check_all
+                  len
+                  "float array -> float_array"
+                  Read.bin_read_float_array
+                  (Write.bin_write_array Write.bin_write_float)
+                  arrays;
+                check_all
+                  len
+                  "float_array -> float array"
+                  (Read.bin_read_array Read.bin_read_float)
+                  Write.bin_write_float_array
+                  arrays;
+                (* Check that the canonical closures used in the short circuit test of float
+                   arrays are indeed allocated closures as opposed to [compare] for example
+                   which is a primitive.  Even if it looks like a tautology, it is not. (for
+                   example, [compare == compare] is false. *)
+                assert (bin_write_float == bin_write_float);
+                assert (bin_read_float == bin_read_float);
+                assert (bin_size_float == bin_size_float))) [@ocaml.alert "-deprecated"]))
        ; ("hashtbl"
           >:: fun () ->
             let bindings = List.rev [ 42, 3.; 17, 2.; 42, 4. ] in
