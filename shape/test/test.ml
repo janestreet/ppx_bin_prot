@@ -938,7 +938,7 @@ end
 
 module Unrolling_bad_0 = struct
   let%test_unit _ =
-    let module M = struct
+    let module _ = struct
       type t1 =
         [ `A
         | `B of t1
@@ -984,7 +984,7 @@ module Unrolling_bad_0 = struct
 end
 
 let%test_unit _ =
-  let module Unrolling_good_1 = struct
+  let module _ = struct
     type t = [ `A of t ] [@@deriving bin_shape]
     type u = [ `A of u ] [@@deriving bin_shape]
 
@@ -995,7 +995,7 @@ let%test_unit _ =
 ;;
 
 let%test_unit _ =
-  let module Unrolling_bad_1 = struct
+  let module _ = struct
     type t = [ `A of t ] [@@deriving bin_shape]
     type u = [ `A of t ] [@@deriving bin_shape] (* like good, except: [of u] -> [of t] *)
 
