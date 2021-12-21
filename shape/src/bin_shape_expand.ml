@@ -103,12 +103,20 @@ end = struct
   ;;
 end
 
+let expr_error ~loc msg =
+  pexp_extension
+    ~loc
+    (Location.Error.to_extension (Location.Error.createf ~loc "ppx_bin_shape: %s" msg))
+;;
+
+let expr_errorf ~loc = Printf.ksprintf (fun msg -> expr_error ~loc msg)
+
 let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expression =
   fun ~allow_free_vars ~context ->
   let rec traverse_row ~loc ~typ_for_error (row : row_field) : expression =
     match row.prf_desc with
     | Rtag (_, true, _ :: _) | Rtag (_, false, _ :: _ :: _) ->
-      raise_errorf
+      expr_errorf
         ~loc
         "unsupported '&' in row_field: %s"
         (string_of_core_type typ_for_error)
@@ -116,7 +124,7 @@ let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expressi
       [%expr Bin_prot.Shape.constr [%e estring ~loc txt] None]
     | Rtag ({ txt; _ }, false, [ t ]) ->
       [%expr Bin_prot.Shape.constr [%e estring ~loc txt] (Some [%e traverse t])]
-    | Rtag (_, false, []) -> raise_errorf ~loc "impossible row_type: Rtag (_,_,false,[])"
+    | Rtag (_, false, []) -> expr_error ~loc "impossible row_type: Rtag (_,_,false,[])"
     | Rinherit t ->
       [%expr
         Bin_prot.Shape.inherit_
@@ -138,7 +146,7 @@ let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expressi
     | Ptyp_var tvar ->
       if allow_free_vars
       then [%expr Bin_prot.Shape.var [%e loc_string loc] [%e shape_vid ~loc ~tvar]]
-      else raise_errorf ~loc "unexpected free type variable: '%s" tvar
+      else expr_errorf ~loc "unexpected free type variable: '%s" tvar
     | Ptyp_variant (rows, _, None) ->
       shape_poly_variant
         ~loc
@@ -152,17 +160,24 @@ let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expressi
     | Ptyp_alias _
     | Ptyp_package _
     | Ptyp_extension _ ->
-      raise_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
+      expr_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
   in
   traverse
 ;;
 
-let tvars_of_def (td : type_declaration) : string list =
-  List.map td.ptype_params ~f:(fun (typ, _variance) ->
-    let loc = typ.ptyp_loc in
-    match typ with
-    | { ptyp_desc = Ptyp_var tvar; _ } -> tvar
-    | _ -> raise_errorf ~loc "unexpected non-tvar in type params")
+let tvars_of_def (td : type_declaration)
+  : (string list, [ `Non_tvar of location ]) Result.t
+  =
+  let tvars, non_tvars =
+    List.partition_map td.ptype_params ~f:(fun (typ, _variance) ->
+      let loc = typ.ptyp_loc in
+      match typ with
+      | { ptyp_desc = Ptyp_var tvar; _ } -> First tvar
+      | _ -> Second (`Non_tvar loc))
+  in
+  match non_tvars with
+  | `Non_tvar loc :: _ -> Error (`Non_tvar loc)
+  | [] -> Ok tvars
 ;;
 
 module Structure : sig
@@ -189,7 +204,7 @@ end = struct
               | Pcstr_tuple args -> List.map args ~f:(of_type ~context)
               | Pcstr_record lds -> [ of_label_decs ~loc ~context lds ] ))))
     | Ptype_abstract -> None
-    | Ptype_open -> raise_errorf ~loc "open types not supported"
+    | Ptype_open -> Some (expr_errorf ~loc "open types not supported")
   ;;
 
   let expr_of_td ~loc ~context (td : type_declaration) : expression option =
@@ -258,22 +273,15 @@ end = struct
               "cannot write both [bin_shape ~annotate] and [bin_shape ~basetype]"
           | _ -> ()
         in
-        let () =
-          match tds, annotation_opt with
-          | ([] | _ :: _ :: _), Some _ ->
-            raise_errorf ~loc "unexpected [~annotate] on multi type-declaration"
-          | _ -> ()
-        in
-        let () =
-          match tds, basetype_opt with
-          | ([] | _ :: _ :: _), Some _ ->
-            raise_errorf ~loc "unexpected [~basetype] on multi type-declaration"
-          | _ -> ()
-        in
         let annotate_f : expression -> expression =
           match annotation_opt with
           | None -> fun e -> e
-          | Some name -> shape_annotate ~loc ~name
+          | Some name ->
+            (match tds with
+             | [] | _ :: _ :: _ ->
+               fun _e ->
+                 expr_errorf ~loc "unexpected [~annotate] on multi type-declaration"
+             | [ _ ] -> shape_annotate ~loc ~name)
         in
         let tagged_schemes =
           List.filter_map tds ~f:(fun td ->
@@ -282,25 +290,35 @@ end = struct
             match body_opt with
             | None -> None
             | Some body ->
-              let tvars = tvars_of_def td in
-              let formals = List.map tvars ~f:(fun tvar -> shape_vid ~loc ~tvar) in
-              [%expr [%e shape_tid ~loc ~tname], [%e elist ~loc formals], [%e body]]
-              |> fun x -> Some x)
+              (match tvars_of_def td with
+               | Error (`Non_tvar loc) ->
+                 Some (expr_errorf ~loc "unexpected non-tvar in type params")
+               | Ok tvars ->
+                 let formals = List.map tvars ~f:(fun tvar -> shape_vid ~loc ~tvar) in
+                 [%expr [%e shape_tid ~loc ~tname], [%e elist ~loc formals], [%e body]]
+                 |> fun x -> Some x))
         in
         let mk_exprs mk_init =
           let exprs =
             List.map tds ~f:(fun td ->
               let { Location.loc; txt = tname } = td.ptype_name in
-              let tvars = tvars_of_def td in
-              let args = List.map tvars ~f:(fun tvar -> evar ~loc tvar) in
-              List.fold_right tvars ~init:(mk_init ~tname ~args) ~f:(fun tvar acc ->
-                [%expr fun [%p pvar ~loc tvar] -> [%e acc]]))
+              match tvars_of_def td with
+              | Error (`Non_tvar loc) ->
+                expr_errorf ~loc "unexpected non-tvar in type params"
+              | Ok tvars ->
+                let args = List.map tvars ~f:(fun tvar -> evar ~loc tvar) in
+                List.fold_right tvars ~init:(mk_init ~tname ~args) ~f:(fun tvar acc ->
+                  [%expr fun [%p pvar ~loc tvar] -> [%e acc]]))
           in
           [%expr [%e pexp_tuple ~loc exprs]]
         in
         let expr =
           match basetype_opt with
-          | Some uuid -> mk_exprs (fun ~tname:_ ~args -> shape_basetype ~loc ~uuid args)
+          | Some uuid ->
+            (match tds with
+             | [] | _ :: _ :: _ ->
+               expr_errorf ~loc "unexpected [~basetype] on multi type-declaration"
+             | [ _ ] -> mk_exprs (fun ~tname:_ ~args -> shape_basetype ~loc ~uuid args))
           | None ->
             [%expr
               let _group =
@@ -323,12 +341,19 @@ end = struct
     let td = name_type_params_in_td td in
     let { Location.loc; txt = tname } = td.ptype_name in
     let name = bin_shape_ tname in
-    let tvars = tvars_of_def td in
-    let type_ =
-      List.fold_left tvars ~init:[%type: Bin_prot.Shape.t] ~f:(fun acc _ ->
-        [%type: Bin_prot.Shape.t -> [%t acc]])
-    in
-    psig_value ~loc (value_description ~loc ~name:(Loc.make name ~loc) ~type_ ~prim:[])
+    match tvars_of_def td with
+    | Error (`Non_tvar loc) ->
+      psig_extension
+        ~loc
+        (Location.Error.to_extension
+           (Location.Error.createf ~loc "%s" "unexpected non-tvar in type params"))
+        []
+    | Ok tvars ->
+      let type_ =
+        List.fold_left tvars ~init:[%type: Bin_prot.Shape.t] ~f:(fun acc _ ->
+          [%type: Bin_prot.Shape.t -> [%t acc]])
+      in
+      psig_value ~loc (value_description ~loc ~name:(Loc.make name ~loc) ~type_ ~prim:[])
   ;;
 
   let gen =
