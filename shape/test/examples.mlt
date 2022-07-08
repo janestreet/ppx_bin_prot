@@ -41,7 +41,6 @@ module Annotation_syntax : sig type t = int val bin_shape_t : Shape.t end
 
 module Annotation_on_multi_type_dec = struct
   type t = int
-
   and u = float [@@deriving bin_shape ~annotate:"this-is-not-allowed"]
 end
 
@@ -121,7 +120,7 @@ end
   {|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:113:6: The shape for an inherited type is not described as a polymorphic-variant: (Application ...())").
+ "ppx/ppx_bin_prot/shape/test/examples.mlt:112:6: The shape for an inherited type is not described as a polymorphic-variant: (Application ...())").
 |}]
 
 module Inheriting_from_annotated_polymorphic_variant = struct
@@ -144,7 +143,7 @@ end
   {|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:136:6: The shape for an inherited type is not described as a polymorphic-variant: (Annotate my-t1 ...)").
+ "ppx/ppx_bin_prot/shape/test/examples.mlt:135:6: The shape for an inherited type is not described as a polymorphic-variant: (Annotate my-t1 ...)").
 |}]
 
 module Duplicated_variant_constructor_allowed = struct
@@ -201,7 +200,7 @@ end
   {|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:192:4: Different shapes for duplicated polymorphic constructor: `a").
+ "ppx/ppx_bin_prot/shape/test/examples.mlt:191:4: Different shapes for duplicated polymorphic constructor: `a").
 |}]
 
 module No_such_bin_shape_syntax = struct
@@ -264,7 +263,6 @@ module Basetype_syntax_kind2 :
 
 module Basetype_on_multi_type_dec = struct
   type t = int
-
   and u = float [@@deriving bin_shape ~basetype:"this-is-not-allowed"]
 end
 
