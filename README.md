@@ -4,7 +4,7 @@ ppx_bin_prot
 Generation of binary serialization and deserialization functions from type definitions.
 There's more information about:
 
-- The [bin-prot format](https://github.com/janestreet/bin_prot/blob/master/README.md) 
+- The [bin-prot format](https://github.com/janestreet/bin_prot/blob/master/README.md)
 - [bin-prot-shape](https://github.com/janestreet/bin_prot/blob/master/shape/README.md), which is useful for checking
   compatibility of the `bin_prot` representations of different types.
 
@@ -45,6 +45,24 @@ There are however a number of limitations:
 If these aren't met, then `ppx_bin_prot` will simply generate a list of value
 bindings.
 
+## Expression extensions
+
+Several new expression forms are supported to derive the individual
+values defined by `ppx_bin_prot`. Each of the following extensions can
+be used, with arbitrary type expressions in place of `t`, to produce
+values of the corresponding types on the right:
+
+```ocaml
+[%bin_shape: t]      : Bin_prot.Shape.t
+[%bin_digest: t]     : string
+[%bin_size: t]       : t Bin_prot.Size.sizer
+[%bin_write: t]      : t Bin_prot.Write.writer
+[%bin_read: t]       : t Bin_prot.Read.reader
+[%bin_writer: t]     : t Bin_prot.Type_class.writer
+[%bin_reader: t]     : t Bin_prot.Type_class.reader
+[%bin_type_class: t] : t Bin_prot.Type_class.t
+```
+
 ### Weird looking type errors
 
 In some cases, a type can meet all the conditions listed above, in which case the
@@ -82,4 +100,3 @@ Error: In this `with' constraint, the new definition of t
 
 To workaround that error, simply copy the constraint on the type which has the
 `[@@deriving]` annotation. This will force generating a list of value bindings.
-

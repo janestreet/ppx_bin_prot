@@ -530,6 +530,11 @@ module Generate_bin_size = struct
     let bindings = List.map tds ~f:(bin_size_td ~should_omit_type_annot ~loc ~path) in
     pstr_value ~loc rec_flag bindings
   ;;
+
+  let extension ~loc ~path:_ ty =
+    bin_size_type Full_type_name.absent loc ty
+    |> make_fun ~loc:{ loc with loc_ghost = true }
+  ;;
 end
 
 (* +-----------------------------------------------------------------+
@@ -539,6 +544,11 @@ end
 module Generate_bin_write = struct
   let mk_abst_call ~loc id args =
     type_constr_conv ~loc id ~f:(fun s -> "bin_write_" ^ s) args
+  ;;
+
+  let mk_buf_pos_call ~loc e v =
+    let args = [ Nolabel, [%expr buf]; Labelled "pos", [%expr pos]; Nolabel, v ] in
+    pexp_apply ~loc e args
   ;;
 
   (* Conversion of types *)
@@ -592,7 +602,7 @@ module Generate_bin_write = struct
           let v_expr =
             let e_name = evar ~loc v_name in
             match bin_write_type full_type_name loc tp with
-            | `Fun fun_expr -> [%expr [%e fun_expr] buf ~pos [%e e_name]]
+            | `Fun fun_expr -> mk_buf_pos_call ~loc fun_expr e_name
             | `Match cases -> pexp_match ~loc e_name cases
           in
           let patt = mk_patt loc v_name el in
@@ -655,7 +665,7 @@ module Generate_bin_write = struct
         | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
           let write_args =
             match bin_write_type full_type_name tp.ptyp_loc tp with
-            | `Fun fun_expr -> [%expr [%e fun_expr] buf ~pos args]
+            | `Fun fun_expr -> mk_buf_pos_call fun_expr ~loc [%expr args]
             | `Match cases -> pexp_match ~loc [%expr args] cases
           in
           case
@@ -678,7 +688,7 @@ module Generate_bin_write = struct
              case
                ~lhs:(ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc "v"))
                ~guard:None
-               ~rhs:[%expr [%e call] buf ~pos v]
+               ~rhs:(mk_buf_pos_call call ~loc [%expr v])
            | _ -> Location.raise_errorf ~loc "bin_write_variant: unknown type"))
     in
     `Match matchings
@@ -793,7 +803,9 @@ module Generate_bin_write = struct
     match fun_or_match with
     | `Fun fun_expr when don't_expand -> fun_expr
     | `Fun fun_expr ->
-      alias_or_fun fun_expr [%expr fun buf ~pos v -> [%e fun_expr] buf ~pos v]
+      alias_or_fun
+        fun_expr
+        [%expr fun buf ~pos v -> [%e mk_buf_pos_call fun_expr ~loc [%expr v]]]
     | `Match matchings -> [%expr fun buf ~pos -> [%e pexp_function ~loc matchings]]
   ;;
 
@@ -879,7 +891,12 @@ module Generate_bin_write = struct
     Deriving.Generator.make Deriving.Args.empty (bin_write ~f_sharp_compatible:false)
   ;;
 
-  let extension ~loc ~path:_ ty =
+  let function_extension ~loc ~path:_ ty =
+    bin_write_type Full_type_name.absent loc ty
+    |> make_fun ~loc:{ loc with loc_ghost = true }
+  ;;
+
+  let type_class_extension ~loc ~path:_ ty =
     let loc = { loc with loc_ghost = true } in
     let full_type_name = Full_type_name.absent in
     let size =
@@ -1420,7 +1437,34 @@ module Generate_bin_read = struct
     Deriving.Generator.make Deriving.Args.empty (bin_read ~f_sharp_compatible:false)
   ;;
 
-  let extension ~loc ~path:_ ty =
+  let function_extension ~loc ~path:_ ty =
+    let loc = { loc with loc_ghost = true } in
+    let full_type_name = Full_type_name.absent in
+    let read_name = "read" in
+    let vtag_read_name =
+      (* The vtag reader is used for polymorphic variants, and not for other types. We
+         bind it with an underscore so the resulting code compiles either way. This seems
+         less error-prone than adding logic here to keep it or not, mirroring the logic
+         elsewhere of whether to refer to it or not. *)
+      "_vtag_read"
+    in
+    let read_binding, vtag_read_binding =
+      let oc_body = bin_read_type_toplevel full_type_name loc ty ~full_type:ty in
+      read_and_vtag_read_bindings
+        ~loc
+        ~read_name
+        ~read_binding_type:None
+        ~vtag_read_name
+        ~vtag_read_binding_type:None
+        ~full_type_name
+        ~td_class:(Td_class.of_core_type ty)
+        ~args:[]
+        ~oc_body
+    in
+    pexp_let ~loc Nonrecursive [ vtag_read_binding ] read_binding.pvb_expr
+  ;;
+
+  let type_class_extension ~loc ~path:_ ty =
     let loc = { loc with loc_ghost = true } in
     let full_type_name = Full_type_name.absent in
     let read_name = "read" in
@@ -1523,8 +1567,8 @@ module Generate_tp_class = struct
     let loc = { loc with loc_ghost = true } in
     tp_record
       ~loc
-      ~writer:(Generate_bin_write.extension ~loc ~path ty)
-      ~reader:(Generate_bin_read.extension ~loc ~path ty)
+      ~writer:(Generate_bin_write.type_class_extension ~loc ~path ty)
+      ~reader:(Generate_bin_read.type_class_extension ~loc ~path ty)
       ~shape:(Bin_shape_expand.shape_extension ~loc ty)
   ;;
 end
@@ -1543,23 +1587,32 @@ let () =
   |> Deriving.ignore
 ;;
 
+let bin_size = Deriving.add "bin_size" ~extension:Generate_bin_size.extension
+
 let bin_write =
   Deriving.add
     "bin_write"
     ~str_type_decl:Generate_bin_write.gen
     ~sig_type_decl:Sig.bin_write
+    ~extension:Generate_bin_write.function_extension
 ;;
 
 let () =
-  Deriving.add "bin_writer" ~extension:Generate_bin_write.extension |> Deriving.ignore
+  Deriving.add "bin_writer" ~extension:Generate_bin_write.type_class_extension
+  |> Deriving.ignore
 ;;
 
 let bin_read =
-  Deriving.add "bin_read" ~str_type_decl:Generate_bin_read.gen ~sig_type_decl:Sig.bin_read
+  Deriving.add
+    "bin_read"
+    ~str_type_decl:Generate_bin_read.gen
+    ~sig_type_decl:Sig.bin_read
+    ~extension:Generate_bin_read.function_extension
 ;;
 
 let () =
-  Deriving.add "bin_reader" ~extension:Generate_bin_read.extension |> Deriving.ignore
+  Deriving.add "bin_reader" ~extension:Generate_bin_read.type_class_extension
+  |> Deriving.ignore
 ;;
 
 let bin_type_class =
