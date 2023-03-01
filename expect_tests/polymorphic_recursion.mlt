@@ -11,7 +11,7 @@ end
 module Simple :
   sig
     type 'a t = C of 'a list t * string t
-    val bin_shape_t : Bin_prot.Shape.t -> Bin_prot.Shape.t
+    val bin_shape_t : Bin_shape.t -> Bin_shape.t
     val bin_size_t : 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer
     val bin_write_t : 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer
     val bin_writer_t :

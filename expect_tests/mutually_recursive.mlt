@@ -28,10 +28,8 @@ module Test :
       if_geq : ('a, 'm) t';
     }
     and ('a, 'm) t' = [ `branch of ('a, 'm) branch | `leaf of 'a ]
-    val bin_shape_branch :
-      Bin_prot.Shape.t -> Bin_prot.Shape.t -> Bin_prot.Shape.t
-    val bin_shape_t' :
-      Bin_prot.Shape.t -> Bin_prot.Shape.t -> Bin_prot.Shape.t
+    val bin_shape_branch : Bin_shape.t -> Bin_shape.t -> Bin_shape.t
+    val bin_shape_t' : Bin_shape.t -> Bin_shape.t -> Bin_shape.t
     val bin_size_branch :
       'a Bin_prot.Size.sizer ->
       'm Bin_prot.Size.sizer -> ('a, 'm) branch Bin_prot.Size.sizer

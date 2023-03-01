@@ -81,16 +81,17 @@ let lengths = [ 0; 1; 10; 100; 1000; 10_000 ]
 let write_float_array len =
   let arr = Array.create ~len 1.0 in
   let buf = Bigstring.create 1_000_000 in
-  Staged.stage (fun () -> write_bin_prot bin_writer_float_array buf arr ~pos:0)
+  Staged.stage (fun () ->
+    write_bin_prot (bin_writer_array bin_writer_float) buf arr ~pos:0)
 ;;
 
 let read_float_array len =
   let arr = Array.create ~len 1.0 in
   let buf = Bigstring.create 1_000_000 in
-  write_bin_prot bin_writer_float_array buf arr ~pos:0;
+  write_bin_prot (bin_writer_array bin_writer_float) buf arr ~pos:0;
   Staged.stage (fun () ->
     pos_ref := 0;
-    let arr = read_bin_prot bin_reader_float_array buf ~pos_ref in
+    let arr = read_bin_prot (bin_reader_array bin_reader_float) buf ~pos_ref in
     if not (Array.length arr = len)
     then failwithf "got len %d, expected %d" (Array.length arr) len ())
 ;;
