@@ -95,10 +95,12 @@ let ( != ) x y = not (x = y)
 (* meta-test that we are using sensible bindings for [=] and [!=] *)
 let%test _ = [%bin_shape: int] = [%bin_shape: int]
 let%test _ = not ([%bin_shape: int] != [%bin_shape: int])
+
 (* int/string have distinct hashes; but self-equal *)
 let%test _ = [%bin_shape: int] = [%bin_shape: int]
 let%test _ = [%bin_shape: string] = [%bin_shape: string]
 let%test _ = [%bin_shape: int] != [%bin_shape: string]
+
 (* existence of some predefined bin_shape_<t> functions *)
 let%test _ = [%bin_shape: int] = bin_shape_int
 let%test _ = [%bin_shape: string] = bin_shape_string
@@ -1260,6 +1262,7 @@ module Dub = struct
   ;;
 
   let%test_unit _ = test_eval_time 15 (sec 1.)
+
   (* demonstate that we have no exponential blowup *)
   let%test_unit _ = test_eval_time 10000 (sec 1.)
 end
@@ -1599,7 +1602,6 @@ module Test_nested_type_application = struct
 
   let exp = [%bin_shape: int pair pair]
   let expect = Canonical.(create (tuple [ tuple [ int; int ]; tuple [ int; int ] ]))
-
   let%test_unit _ = ensure_shape exp ~expect
 end
 

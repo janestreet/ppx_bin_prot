@@ -448,12 +448,8 @@ module Generate_bin_size = struct
         | Pcstr_record fields ->
           let cnv_patts lbls = ppat_record ~loc lbls Closed in
           let get_tp ld = ld.pld_type in
-          let mk_patt loc v_name ld =
-            Located.map lident ld.pld_name, pvar ~loc v_name
-          in
-          let patts, size_args =
-            bin_size_args full_type_name loc get_tp mk_patt fields
-          in
+          let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
+          let patts, size_args = bin_size_args full_type_name loc get_tp mk_patt fields in
           case
             ~lhs:(pconstruct cd (Some (cnv_patts patts)))
             ~guard:None
@@ -757,9 +753,7 @@ module Generate_bin_write = struct
         | Pcstr_tuple args ->
           let get_tp tp = tp in
           let mk_patt loc v_name _ = pvar ~loc v_name in
-          let patts, write_args =
-            bin_write_args full_type_name loc get_tp mk_patt args
-          in
+          let patts, write_args = bin_write_args full_type_name loc get_tp mk_patt args in
           let args =
             match patts with
             | [ patt ] -> patt
@@ -775,9 +769,7 @@ module Generate_bin_write = struct
         | Pcstr_record fields ->
           let cnv_patts lbls = ppat_record ~loc lbls Closed in
           let get_tp ld = ld.pld_type in
-          let mk_patt loc v_name ld =
-            Located.map lident ld.pld_name, pvar ~loc v_name
-          in
+          let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
           let patts, expr = bin_write_args full_type_name loc get_tp mk_patt fields in
           case
             ~lhs:(pconstruct cd (Some (cnv_patts patts)))
@@ -1273,7 +1265,8 @@ module Generate_bin_read = struct
              rewrite_call (fun new_f -> cnv (pexp_apply ~loc new_f [ arg ])) f
            | Pexp_ident { txt = Ldot (Ldot (Lident "Bin_prot", "Read"), _); _ } ->
              variant_wrong_type ~loc full_type_name
-           | Pexp_ident { txt = Lident name; _ } when String.is_prefix name ~prefix:"_o" ->
+           | Pexp_ident { txt = Lident name; _ } when String.is_prefix name ~prefix:"_o"
+             ->
              let full_type_name = Full_type_name.get_exn ~loc full_type_name in
              [%expr
                fun _buf ~pos_ref _vint ->
@@ -1281,7 +1274,9 @@ module Generate_bin_read = struct
                    (Bin_prot.Common.ReadError.Silly_type [%e estring ~loc full_type_name])
                    !pos_ref]
            | Pexp_ident id ->
-             let expr = unapplied_type_constr_conv ~loc id ~f:(fun s -> "__" ^ s ^ "__") in
+             let expr =
+               unapplied_type_constr_conv ~loc id ~f:(fun s -> "__" ^ s ^ "__")
+             in
              let cnv_expr = cnv expr in
              alias_or_fun
                cnv_expr
@@ -1541,8 +1536,7 @@ module Generate_tp_class = struct
         List.map td.ptype_params ~f:(fun tp ->
           let name = get_type_param_name tp in
           [%expr
-            ([%e evar ~loc:name.loc @@ "bin_" ^ name.txt] : _ Bin_prot.Type_class.t)
-            .shape])
+            ([%e evar ~loc:name.loc @@ "bin_" ^ name.txt] : _ Bin_prot.Type_class.t).shape])
       in
       eapply ~loc (evar ~loc @@ "bin_shape_" ^ td.ptype_name.txt) tparam_exprs
     in
