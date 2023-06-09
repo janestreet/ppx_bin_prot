@@ -269,32 +269,32 @@ module Generate_bin_size = struct
     -> 'b list * expression
     =
     fun full_type_name loc get_tp mk_patt tps ->
-      let rec loop i = function
-        | el :: rest ->
-          let tp = get_tp el in
-          let v_name = "v" ^ Int.to_string i in
-          let v_expr =
-            let e_name = evar ~loc v_name in
-            let expr =
-              match bin_size_type full_type_name loc tp with
-              | `Fun fun_expr -> eapply ~loc fun_expr [ e_name ]
-              | `Match cases -> pexp_match ~loc e_name cases
-            in
-            [%expr Bin_prot.Common.( + ) size [%e expr]]
+    let rec loop i = function
+      | el :: rest ->
+        let tp = get_tp el in
+        let v_name = "v" ^ Int.to_string i in
+        let v_expr =
+          let e_name = evar ~loc v_name in
+          let expr =
+            match bin_size_type full_type_name loc tp with
+            | `Fun fun_expr -> eapply ~loc fun_expr [ e_name ]
+            | `Match cases -> pexp_match ~loc e_name cases
           in
-          let patt = mk_patt loc v_name el in
-          if List.is_empty rest
-          then [ patt ], v_expr
-          else (
-            let patts, in_expr = loop (i + 1) rest in
-            ( patt :: patts
-            , [%expr
-              let size = [%e v_expr] in
-              [%e in_expr]] ))
-        | [] -> assert false
-        (* impossible *)
-      in
-      loop 1 tps
+          [%expr Bin_prot.Common.( + ) size [%e expr]]
+        in
+        let patt = mk_patt loc v_name el in
+        if List.is_empty rest
+        then [ patt ], v_expr
+        else (
+          let patts, in_expr = loop (i + 1) rest in
+          ( patt :: patts
+          , [%expr
+            let size = [%e v_expr] in
+            [%e in_expr]] ))
+      | [] -> assert false
+      (* impossible *)
+    in
+    loop 1 tps
 
   and bin_size_tup_rec :
     'a 'b.
@@ -307,16 +307,16 @@ module Generate_bin_size = struct
     -> _
     =
     fun full_type_name loc cnv_patts get_tp mk_patt tp ->
-      let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp in
-      `Match
-        [ case
-            ~lhs:(cnv_patts patts)
-            ~guard:None
-            ~rhs:
-              [%expr
-                let size = 0 in
-                [%e expr]]
-        ]
+    let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp in
+    `Match
+      [ case
+          ~lhs:(cnv_patts patts)
+          ~guard:None
+          ~rhs:
+            [%expr
+              let size = 0 in
+              [%e expr]]
+      ]
 
   (* Conversion of tuples *)
   and bin_size_tuple full_type_name loc l =
@@ -591,29 +591,29 @@ module Generate_bin_write = struct
     -> 'b list * expression
     =
     fun full_type_name loc get_tp mk_patt tp ->
-      let rec loop i = function
-        | el :: rest ->
-          let tp = get_tp el in
-          let v_name = "v" ^ Int.to_string i in
-          let v_expr =
-            let e_name = evar ~loc v_name in
-            match bin_write_type full_type_name loc tp with
-            | `Fun fun_expr -> mk_buf_pos_call ~loc fun_expr e_name
-            | `Match cases -> pexp_match ~loc e_name cases
-          in
-          let patt = mk_patt loc v_name el in
-          if List.is_empty rest
-          then [ patt ], v_expr
-          else (
-            let patts, in_expr = loop (i + 1) rest in
-            ( patt :: patts
-            , [%expr
-              let pos = [%e v_expr] in
-              [%e in_expr]] ))
-        | [] -> assert false
-        (* impossible *)
-      in
-      loop 1 tp
+    let rec loop i = function
+      | el :: rest ->
+        let tp = get_tp el in
+        let v_name = "v" ^ Int.to_string i in
+        let v_expr =
+          let e_name = evar ~loc v_name in
+          match bin_write_type full_type_name loc tp with
+          | `Fun fun_expr -> mk_buf_pos_call ~loc fun_expr e_name
+          | `Match cases -> pexp_match ~loc e_name cases
+        in
+        let patt = mk_patt loc v_name el in
+        if List.is_empty rest
+        then [ patt ], v_expr
+        else (
+          let patts, in_expr = loop (i + 1) rest in
+          ( patt :: patts
+          , [%expr
+            let pos = [%e v_expr] in
+            [%e in_expr]] ))
+      | [] -> assert false
+      (* impossible *)
+    in
+    loop 1 tp
 
   and bin_write_tup_rec :
     'a 'b.
@@ -626,8 +626,8 @@ module Generate_bin_write = struct
     -> _
     =
     fun full_type_name loc cnv_patts get_tp mk_patt tp ->
-      let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp in
-      `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
+    let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp in
+    `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
 
   (* Conversion of tuples *)
   and bin_write_tuple full_type_name loc l =
