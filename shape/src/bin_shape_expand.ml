@@ -6,9 +6,13 @@ let raise_errorf ~loc fmt =
   Location.raise_errorf ~loc (Stdlib.( ^^ ) "ppx_bin_shape: " fmt)
 ;;
 
-let loc_string loc =
-  [%expr
-    Bin_prot.Shape.Location.of_string [%e Ppx_here_expander.lift_position_as_string ~loc]]
+let loc_string loc ~hide_loc =
+  let loc_expr =
+    if hide_loc
+    then [%expr "<hidden>"]
+    else Ppx_here_expander.lift_position_as_string ~loc
+  in
+  [%expr Bin_prot.Shape.Location.of_string [%e loc_expr]]
 ;;
 
 let app_list ~loc (func : expression) (args : expression list) =
@@ -57,8 +61,8 @@ let shape_variant ~loc (xs : (string * expression list) list) =
           (List.map xs ~f:(fun (s, es) -> [%expr [%e estring ~loc s], [%e elist ~loc es]]))]]
 ;;
 
-let shape_poly_variant ~loc (xs : expression list) =
-  [%expr Bin_prot.Shape.poly_variant [%e loc_string loc] [%e elist ~loc xs]]
+let shape_poly_variant ~loc ~hide_loc (xs : expression list) =
+  [%expr Bin_prot.Shape.poly_variant [%e loc_string loc ~hide_loc] [%e elist ~loc xs]]
 ;;
 
 type string_literal_or_other_expression =
@@ -111,8 +115,10 @@ let expr_error ~loc msg =
 
 let expr_errorf ~loc = Printf.ksprintf (fun msg -> expr_error ~loc msg)
 
-let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expression =
-  fun ~allow_free_vars ~context ->
+let of_type
+  : allow_free_vars:bool -> hide_loc:bool -> context:Context.t -> core_type -> expression
+  =
+  fun ~allow_free_vars ~hide_loc ~context ->
   let rec traverse_row ~loc ~typ_for_error (row : row_field) : expression =
     match row.prf_desc with
     | Rtag (_, true, _ :: _) | Rtag (_, false, _ :: _ :: _) ->
@@ -128,7 +134,7 @@ let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expressi
     | Rinherit t ->
       [%expr
         Bin_prot.Shape.inherit_
-          [%e loc_string { t.ptyp_loc with loc_ghost = true }]
+          [%e loc_string { t.ptyp_loc with loc_ghost = true } ~hide_loc]
           [%e traverse t]]
   and traverse typ =
     let loc = { typ.ptyp_loc with loc_ghost = true } in
@@ -145,11 +151,13 @@ let of_type : allow_free_vars:bool -> context:Context.t -> core_type -> expressi
     | Ptyp_tuple typs -> shape_tuple ~loc (List.map typs ~f:traverse)
     | Ptyp_var tvar ->
       if allow_free_vars
-      then [%expr Bin_prot.Shape.var [%e loc_string loc] [%e shape_vid ~loc ~tvar]]
+      then
+        [%expr Bin_prot.Shape.var [%e loc_string loc ~hide_loc] [%e shape_vid ~loc ~tvar]]
       else expr_errorf ~loc "unexpected free type variable: '%s" tvar
     | Ptyp_variant (rows, _, None) ->
       shape_poly_variant
         ~loc
+        ~hide_loc
         (List.map rows ~f:(fun row -> traverse_row ~loc ~typ_for_error:typ row))
     | Ptyp_poly (_, _)
     | Ptyp_variant (_, _, Some _)
@@ -185,15 +193,15 @@ module Structure : sig
 end = struct
   let of_type = of_type ~allow_free_vars:true
 
-  let of_label_decs ~loc ~context lds =
+  let of_label_decs ~loc ~hide_loc ~context lds =
     shape_record
       ~loc
-      (List.map lds ~f:(fun ld -> ld.pld_name.txt, of_type ~context ld.pld_type))
+      (List.map lds ~f:(fun ld -> ld.pld_name.txt, of_type ~hide_loc ~context ld.pld_type))
   ;;
 
-  let of_kind ~loc ~context (k : type_kind) : expression option =
+  let of_kind ~loc ~hide_loc ~context (k : type_kind) : expression option =
     match k with
-    | Ptype_record lds -> Some (of_label_decs ~loc ~context lds)
+    | Ptype_record lds -> Some (of_label_decs ~loc ~hide_loc ~context lds)
     | Ptype_variant cds ->
       Some
         (shape_variant
@@ -201,15 +209,15 @@ end = struct
            (List.map cds ~f:(fun cd ->
               ( cd.pcd_name.txt
               , match cd.pcd_args with
-              | Pcstr_tuple args -> List.map args ~f:(of_type ~context)
-              | Pcstr_record lds -> [ of_label_decs ~loc ~context lds ] ))))
+              | Pcstr_tuple args -> List.map args ~f:(of_type ~hide_loc ~context)
+              | Pcstr_record lds -> [ of_label_decs ~loc ~hide_loc ~context lds ] ))))
     | Ptype_abstract -> None
     | Ptype_open -> Some (expr_errorf ~loc "open types not supported")
   ;;
 
-  let expr_of_td ~loc ~context (td : type_declaration) : expression option =
+  let expr_of_td ~loc ~hide_loc ~context (td : type_declaration) : expression option =
     let expr =
-      match of_kind ~loc ~context td.ptype_kind with
+      match of_kind ~loc ~hide_loc ~context td.ptype_kind with
       | Some e -> Some e
       | None ->
         (* abstract type *)
@@ -218,7 +226,7 @@ end = struct
            (* A fully abstract type is usually intended to represent an empty type
               (0-constructor variant). *)
            Some (shape_variant ~loc [])
-         | Some manifest -> Some (of_type ~context manifest))
+         | Some manifest -> Some (of_type ~hide_loc ~context manifest))
     in
     expr
   ;;
@@ -235,13 +243,15 @@ end = struct
              (map ~f:string_literal (estring __) ||| map ~f:other_expression __)
         +> arg
              "basetype"
-             (map ~f:string_literal (estring __) ||| map ~f:other_expression __))
+             (map ~f:string_literal (estring __) ||| map ~f:other_expression __)
+        +> flag "hide_locations")
       (fun ~loc
         ~path:_
         (rec_flag, tds)
         annotation_opt
         annotation_provisionally_opt
-        basetype_opt ->
+        basetype_opt
+        hide_loc ->
         let tds = List.map tds ~f:name_type_params_in_td in
         let context =
           match rec_flag with
@@ -286,7 +296,7 @@ end = struct
         let tagged_schemes =
           List.filter_map tds ~f:(fun td ->
             let { Location.loc; txt = tname } = td.ptype_name in
-            let body_opt = expr_of_td ~loc ~context td in
+            let body_opt = expr_of_td ~loc ~hide_loc ~context td in
             match body_opt with
             | None -> None
             | Some body ->
@@ -322,7 +332,9 @@ end = struct
           | None ->
             [%expr
               let _group =
-                Bin_prot.Shape.group [%e loc_string loc] [%e elist ~loc tagged_schemes]
+                Bin_prot.Shape.group
+                  [%e loc_string loc ~hide_loc]
+                  [%e elist ~loc tagged_schemes]
               in
               [%e
                 mk_exprs (fun ~tname ~args ->
@@ -365,15 +377,15 @@ end
 let str_gen = Structure.gen
 let sig_gen = Signature.gen
 
-let shape_extension ~loc:_ typ =
+let shape_extension ~loc:_ ~hide_loc typ =
   let context = Context.create [] in
   let allow_free_vars = false in
-  of_type ~allow_free_vars ~context typ
+  of_type ~allow_free_vars ~hide_loc ~context typ
 ;;
 
-let digest_extension ~loc typ =
+let digest_extension ~loc ~hide_loc typ =
   let loc = { loc with loc_ghost = true } in
   [%expr
     Bin_prot.Shape.Digest.to_hex
-      (Bin_prot.Shape.eval_to_digest [%e shape_extension ~loc typ])]
+      (Bin_prot.Shape.eval_to_digest [%e shape_extension ~loc ~hide_loc typ])]
 ;;

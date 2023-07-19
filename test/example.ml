@@ -1,6 +1,16 @@
 open Bin_prot.Std
 
-module type S = sig end
+module type S = sig
+  type t [@@deriving bin_io]
+end
+
+module type S1 = sig
+  type 'a t [@@deriving bin_io]
+end
+
+module type S2 = sig
+  type ('a, 'b) t [@@deriving bin_io]
+end
 
 include (
 struct
@@ -64,31 +74,31 @@ end :
 
 include (
 struct
-  type t =
+  type u =
     | A
     | B
   [@@deriving bin_io]
 
-  type u =
+  type t =
     | C
     | D
-    | E of t
+    | E of u
   [@@deriving bin_io]
 end :
   S)
 
 include (
 struct
-  type t =
+  type u =
     [ `A
     | `B
     ]
   [@@deriving bin_io]
 
-  type u =
+  type t =
     [ `C
     | `D
-    | `E of t
+    | `E of u
     ]
   [@@deriving bin_io]
 end :
@@ -145,26 +155,26 @@ include (
 struct
   type 'a t = 'a [@@deriving bin_io]
 end :
-  S)
+  S1)
 
 include (
 struct
   type 'a t = 'a * int [@@deriving bin_io]
 end :
-  S)
+  S1)
 
 include (
 struct
   type ('a, 'b) t = 'a * 'b [@@deriving bin_io]
 end :
-  S)
+  S2)
 
 include (
 struct
-  type 'a t = 'a constraint 'a = [< `A | `B ] [@@deriving bin_io]
-  type 'a u = [ `A ] t [@@deriving bin_io]
+  type 'a u = 'a constraint 'a = [< `A | `B ] [@@deriving bin_io]
+  type 'a t = [ `A ] u [@@deriving bin_io]
 end :
-  S)
+  S1)
 
 include (
 struct
@@ -174,7 +184,7 @@ struct
     }
   [@@deriving bin_io]
 end :
-  S)
+  S1)
 
 include (
 struct
@@ -187,4 +197,4 @@ struct
     | C
   [@@deriving bin_io]
 end :
-  S)
+  S1)

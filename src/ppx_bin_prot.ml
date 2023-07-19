@@ -4,7 +4,23 @@ open Base
 open Ppxlib
 open Ast_builder.Default
 
-let ( @@ ) a b = a b
+(* +-----------------------------------------------------------------+
+   | Name mangling                                                   |
+   +-----------------------------------------------------------------+ *)
+
+
+let value_name string ~prefix = prefix ^ string
+let bin_read_name = value_name ~prefix:"bin_read_"
+let bin_vtag_read_name string = "__bin_read_" ^ string ^ "__"
+let bin_reader_name = value_name ~prefix:"bin_reader_"
+let bin_size_name = value_name ~prefix:"bin_size_"
+let bin_write_name = value_name ~prefix:"bin_write_"
+let bin_writer_name = value_name ~prefix:"bin_writer_"
+let bin_shape_name = value_name ~prefix:"bin_shape_"
+let bin_name = value_name ~prefix:"bin_"
+let bin_size_arg = value_name ~prefix:"_size_of_"
+let bin_write_arg = value_name ~prefix:"_write_"
+let conv_name = value_name ~prefix:"_of__"
 
 (* +-----------------------------------------------------------------+
    | Signature generators                                            |
@@ -15,7 +31,7 @@ module Sig = struct
     let mk_sig ~ctxt:_ (_rf, tds) =
       List.concat_map tds ~f:(fun td ->
         let td = name_type_params_in_td td in
-        List.map combinators ~f:(fun mk -> mk td))
+        List.map combinators ~f:(fun mk -> Staged.unstage mk td))
     in
     Deriving.Generator.V2.make Deriving.Args.empty mk_sig
   ;;
@@ -34,31 +50,32 @@ module Sig = struct
       ptyp_arrow ~loc Nolabel (wrap_type ~loc tp) acc)
   ;;
 
-  let mk name_format type_constr ?wrap_result td =
-    let loc = td.ptype_loc in
-    let name = Loc.map ~f:(Printf.sprintf name_format) td.ptype_name in
-    let typ = mk_typ ?wrap_result type_constr td in
-    psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[])
+  let mk ?wrap_result name_format type_constr =
+    Staged.stage (fun td ->
+      let loc = td.ptype_loc in
+      let name = Loc.map ~f:name_format td.ptype_name in
+      let typ = mk_typ ?wrap_result type_constr td in
+      psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[]))
   ;;
 
   let bin_write =
     mk_sig_generator
-      [ mk "bin_size_%s" "Bin_prot.Size.sizer"
-      ; mk "bin_write_%s" "Bin_prot.Write.writer"
-      ; mk "bin_writer_%s" "Bin_prot.Type_class.writer"
+      [ mk bin_size_name "Bin_prot.Size.sizer"
+      ; mk bin_write_name "Bin_prot.Write.writer"
+      ; mk bin_writer_name "Bin_prot.Type_class.writer"
       ]
   ;;
 
   let bin_read =
     mk_sig_generator
-      [ mk "bin_read_%s" "Bin_prot.Read.reader"
-      ; mk "__bin_read_%s__" "Bin_prot.Read.reader" ~wrap_result:(fun ~loc t ->
+      [ mk bin_read_name "Bin_prot.Read.reader"
+      ; mk bin_vtag_read_name "Bin_prot.Read.reader" ~wrap_result:(fun ~loc t ->
           [%type: int -> [%t t]])
-      ; mk "bin_reader_%s" "Bin_prot.Type_class.reader"
+      ; mk bin_reader_name "Bin_prot.Type_class.reader"
       ]
   ;;
 
-  let bin_type_class = mk_sig_generator [ mk "bin_%s" "Bin_prot.Type_class.t" ]
+  let bin_type_class = mk_sig_generator [ mk bin_name "Bin_prot.Type_class.t" ]
 
   let named =
     let mk_named_sig ~ctxt (rf, tds) =
@@ -121,10 +138,10 @@ let td_is_nil td =
 
 type var = string Located.t
 
-let vars_of_params ~prefix td =
+let vars_of_params ~f td =
   List.map td.ptype_params ~f:(fun tp ->
     let name = get_type_param_name tp in
-    { name with txt = prefix ^ name.txt })
+    { name with txt = f name.txt })
 ;;
 
 let map_vars vars ~f = List.map vars ~f:(fun (v : var) -> f ~loc:v.loc v.txt)
@@ -173,6 +190,18 @@ let generate_poly_type ?wrap_result ~loc td constructor =
     ~loc
     (List.map td.ptype_params ~f:get_type_param_name)
     (Sig.mk_typ ?wrap_result constructor td)
+;;
+
+let make_value ?wrap_result ~loc ~type_name ~make_value_name ~make_arg_name ~body td =
+  let vars = vars_of_params td ~f:make_arg_name in
+  let pat = pvar ~loc (make_value_name td.ptype_name.txt) in
+  let pat_with_type =
+    match type_name with
+    | None -> pat
+    | Some type_name ->
+      ppat_constraint ~loc pat (generate_poly_type ?wrap_result ~loc td type_name)
+  in
+  value_binding ~loc ~pat:pat_with_type ~expr:(eabstract ~loc (patts_of_vars vars) body)
 ;;
 
 (* Determines whether or not the generated code associated with
@@ -225,9 +254,7 @@ let should_omit_type_annot ~f_sharp_compatible tds =
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_size = struct
-  let mk_abst_call ~loc id args =
-    type_constr_conv ~loc id ~f:(fun s -> "bin_size_" ^ s) args
-  ;;
+  let mk_abst_call ~loc id args = type_constr_conv ~loc id ~f:bin_size_name args
 
   (* Conversion of types *)
   let rec bin_size_type full_type_name _loc ty =
@@ -235,7 +262,7 @@ module Generate_bin_size = struct
     match ty.ptyp_desc with
     | Ptyp_constr (id, args) -> `Fun (bin_size_appl_fun full_type_name loc id args)
     | Ptyp_tuple l -> bin_size_tuple full_type_name loc l
-    | Ptyp_var parm -> `Fun (evar ~loc @@ "_size_of_" ^ parm)
+    | Ptyp_var parm -> `Fun (evar ~loc (bin_size_arg parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf
         ~loc
@@ -253,10 +280,7 @@ module Generate_bin_size = struct
         | `Fun e -> e
         | `Match cases -> pexp_function ~loc:{ ty.ptyp_loc with loc_ghost = true } cases)
     in
-    match mk_abst_call ~loc id sizers with
-    | [%expr Bin_prot.Size.bin_size_array Bin_prot.Size.bin_size_float] ->
-      [%expr Bin_prot.Size.bin_size_float_array]
-    | e -> e
+    mk_abst_call ~loc id sizers
 
   (* Conversion of tuples and records *)
   and bin_size_args :
@@ -379,7 +403,7 @@ module Generate_bin_size = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
-          ~pat:(pvar ~loc @@ "_size_of_" ^ parm.txt)
+          ~pat:(pvar ~loc (bin_size_arg parm.txt))
           ~expr:
             [%expr
               fun _v ->
@@ -509,14 +533,13 @@ module Generate_bin_size = struct
   (* Generate code from type definitions *)
   let bin_size_td ~should_omit_type_annot ~loc ~path td =
     let body = sizer_body_of_td ~path td in
-    let tparam_patts = vars_of_params td ~prefix:"_size_of_" |> patts_of_vars in
-    let pat = pvar ~loc @@ "bin_size_" ^ td.ptype_name.txt in
-    let pat_with_type =
-      if should_omit_type_annot
-      then pat
-      else ppat_constraint ~loc pat (generate_poly_type ~loc td "Bin_prot.Size.sizer")
-    in
-    value_binding ~loc ~pat:pat_with_type ~expr:(eabstract ~loc tparam_patts body)
+    make_value
+      ~loc
+      ~type_name:(Option.some_if (not should_omit_type_annot) "Bin_prot.Size.sizer")
+      ~make_value_name:bin_size_name
+      ~make_arg_name:bin_size_arg
+      ~body
+      td
   ;;
 
   let bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds) =
@@ -538,9 +561,7 @@ end
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_write = struct
-  let mk_abst_call ~loc id args =
-    type_constr_conv ~loc id ~f:(fun s -> "bin_write_" ^ s) args
-  ;;
+  let mk_abst_call ~loc id args = type_constr_conv ~loc id ~f:bin_write_name args
 
   let mk_buf_pos_call ~loc e v =
     let args = [ Nolabel, [%expr buf]; Labelled "pos", [%expr pos]; Nolabel, v ] in
@@ -553,7 +574,7 @@ module Generate_bin_write = struct
     match ty.ptyp_desc with
     | Ptyp_constr (id, args) -> `Fun (bin_write_appl_fun full_type_name loc id args)
     | Ptyp_tuple l -> bin_write_tuple full_type_name loc l
-    | Ptyp_var parm -> `Fun (evar ~loc @@ "_write_" ^ parm)
+    | Ptyp_var parm -> `Fun (evar ~loc (bin_write_arg parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf
         ~loc
@@ -572,13 +593,7 @@ module Generate_bin_write = struct
         | `Match cases ->
           [%expr fun buf ~pos -> [%e pexp_function ~loc:ty.ptyp_loc cases]])
     in
-    let e =
-      match mk_abst_call ~loc id writers with
-      | [%expr Bin_prot.Write.bin_write_array Bin_prot.Write.bin_write_float] ->
-        [%expr Bin_prot.Write.bin_write_float_array]
-      | e -> e
-    in
-    e
+    mk_abst_call ~loc id writers
 
   (* Conversion of tuples and records *)
   and bin_write_args :
@@ -696,7 +711,7 @@ module Generate_bin_write = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
-          ~pat:(pvar ~loc @@ "_write_" ^ parm.txt)
+          ~pat:(pvar ~loc (bin_write_arg parm.txt))
           ~expr:
             [%expr
               fun _buf ~pos:_ _v ->
@@ -838,41 +853,48 @@ module Generate_bin_write = struct
   (* Generate code from type definitions *)
   let bin_write_td ~should_omit_type_annot ~loc ~path td =
     let body = writer_body_of_td ~path td in
-    let size_name = "bin_size_" ^ td.ptype_name.txt in
-    let write_name = "bin_write_" ^ td.ptype_name.txt in
-    let write_binding =
-      let tparam_patts = vars_of_params td ~prefix:"_write_" |> patts_of_vars in
-      let pat = pvar ~loc write_name in
-      let pat_with_type =
-        if should_omit_type_annot
-        then pat
-        else ppat_constraint ~loc pat (generate_poly_type ~loc td "Bin_prot.Write.writer")
-      in
-      value_binding ~loc ~pat:pat_with_type ~expr:(eabstract ~loc tparam_patts body)
-    in
-    let writer_binding =
-      let vars = vars_of_params td ~prefix:"bin_writer_" in
-      let writer_record =
-        writer_type_class_record
-          ~loc
-          ~size:(project_vars (evar ~loc size_name) vars ~field_name:"size")
-          ~write:(project_vars (evar ~loc write_name) vars ~field_name:"write")
-      in
-      value_binding
+    make_value
+      ~loc
+      ~type_name:(Option.some_if (not should_omit_type_annot) "Bin_prot.Write.writer")
+      ~make_value_name:bin_write_name
+      ~make_arg_name:bin_write_arg
+      ~body
+      td
+  ;;
+
+  let bin_writer_td ~loc td =
+    let body =
+      let vars = vars_of_params td ~f:bin_writer_name in
+      writer_type_class_record
         ~loc
-        ~pat:(pvar ~loc @@ "bin_writer_" ^ td.ptype_name.txt)
-        ~expr:(eabstract ~loc (patts_of_vars vars) writer_record)
+        ~size:
+          (project_vars
+             (evar ~loc (bin_size_name td.ptype_name.txt))
+             vars
+             ~field_name:"size")
+        ~write:
+          (project_vars
+             (evar ~loc (bin_write_name td.ptype_name.txt))
+             vars
+             ~field_name:"write")
     in
-    write_binding, writer_binding
+    make_value
+      ~loc
+      ~type_name:None
+      ~make_value_name:bin_writer_name
+      ~make_arg_name:bin_writer_name
+      ~body
+      td
   ;;
 
   let bin_write ~f_sharp_compatible ~loc ~path (rec_flag, tds) =
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     let should_omit_type_annot = should_omit_type_annot ~f_sharp_compatible tds in
-    let write_bindings, writer_bindings =
-      List.map tds ~f:(bin_write_td ~should_omit_type_annot ~loc ~path) |> List.unzip
+    let write_bindings =
+      List.map tds ~f:(bin_write_td ~should_omit_type_annot ~loc ~path)
     in
+    let writer_bindings = List.map tds ~f:(bin_writer_td ~loc) in
     [ Generate_bin_size.bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds)
     ; pstr_value ~loc rec_flag write_bindings
     ; pstr_value ~loc Nonrecursive writer_bindings
@@ -912,9 +934,11 @@ module Generate_bin_read = struct
   ;;
 
   let mk_abst_call loc ?(internal = false) id args =
-    type_constr_conv ~loc id args ~f:(fun s ->
-      let s = "bin_read_" ^ s in
-      if internal then "__" ^ s ^ "__" else s)
+    type_constr_conv
+      ~loc
+      id
+      args
+      ~f:(if internal then bin_vtag_read_name else bin_read_name)
   ;;
 
   (* Conversion of type paths *)
@@ -956,15 +980,10 @@ module Generate_bin_read = struct
         List.map args ~f:(fun tp ->
           get_closed_expr _loc (bin_read_type full_type_name _loc tp))
       in
-      let expr =
-        match bin_read_path_fun id.loc id args_expr with
-        | [%expr Bin_prot.Read.bin_read_array Bin_prot.Read.bin_read_float] ->
-          [%expr Bin_prot.Read.bin_read_float_array]
-        | expr -> expr
-      in
+      let expr = bin_read_path_fun id.loc id args_expr in
       `Closed expr
     | Ptyp_tuple tp -> bin_read_tuple full_type_name loc tp
-    | Ptyp_var parm -> `Closed (evar ~loc ("_of__" ^ parm))
+    | Ptyp_var parm -> `Closed (evar ~loc (conv_name parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf ~loc "bin_read_arrow: cannot convert functions"
     | Ptyp_variant (row_fields, _, _) ->
@@ -1084,7 +1103,7 @@ module Generate_bin_read = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
-          ~pat:(pvar ~loc @@ "_of__" ^ parm.txt)
+          ~pat:(pvar ~loc (conv_name parm.txt))
           ~expr:
             [%expr
               fun _buf ~pos_ref ->
@@ -1358,8 +1377,8 @@ module Generate_bin_read = struct
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let oc_body = reader_body_of_td td full_type_name in
-    let read_name = "bin_read_" ^ td.ptype_name.txt in
-    let vtag_read_name = "__bin_read_" ^ td.ptype_name.txt ^ "__" in
+    let read_name = bin_read_name td.ptype_name.txt in
+    let vtag_read_name = bin_vtag_read_name td.ptype_name.txt in
     let vtag_read_binding_type, read_binding_type =
       if should_omit_type_annot
       then None, None
@@ -1370,7 +1389,7 @@ module Generate_bin_read = struct
         , Some (generate_poly_type ~loc td "Bin_prot.Read.reader") )
     in
     let read_binding, vtag_read_binding =
-      let args = vars_of_params td ~prefix:"_of__" in
+      let args = vars_of_params td ~f:conv_name in
       read_and_vtag_read_bindings
         ~loc
         ~read_name
@@ -1382,7 +1401,7 @@ module Generate_bin_read = struct
         ~args
         ~oc_body
     in
-    let vars = vars_of_params td ~prefix:"bin_reader_" in
+    let vars = vars_of_params td ~f:bin_reader_name in
     let project_vars = project_vars ~record_type:[%type: _ Bin_prot.Type_class.reader] in
     let read =
       let call = project_vars (evar ~loc read_name) vars ~field_name:"read" in
@@ -1392,12 +1411,15 @@ module Generate_bin_read = struct
       let call = project_vars (evar ~loc vtag_read_name) vars ~field_name:"read" in
       alias_or_fun call [%expr fun buf ~pos_ref vtag -> [%e call] buf ~pos_ref vtag]
     in
-    let reader = reader_type_class_record ~loc ~read ~vtag_read in
     let reader_binding =
-      value_binding
+      let body = reader_type_class_record ~loc ~read ~vtag_read in
+      make_value
         ~loc
-        ~pat:(pvar ~loc @@ "bin_reader_" ^ td.ptype_name.txt)
-        ~expr:(eabstract ~loc (patts_of_vars vars) reader)
+        ~type_name:None
+        ~make_value_name:bin_reader_name
+        ~make_arg_name:bin_reader_name
+        ~body
+        td
     in
     vtag_read_binding, (read_binding, reader_binding)
   ;;
@@ -1504,47 +1526,38 @@ module Generate_tp_class = struct
 
   let bin_tp_class_td td =
     let loc = td.ptype_loc in
-    let tparam_cnvs =
-      List.map td.ptype_params ~f:(fun tp ->
-        let name = get_type_param_name tp in
-        "bin_" ^ name.txt)
-    in
-    let mk_pat id = pvar ~loc id in
-    let tparam_patts = List.map tparam_cnvs ~f:mk_pat in
-    let writer =
-      let tparam_exprs =
-        List.map td.ptype_params ~f:(fun tp ->
-          let name = get_type_param_name tp in
-          [%expr
-            ([%e evar ~loc:name.loc @@ "bin_" ^ name.txt] : _ Bin_prot.Type_class.t)
-            .writer])
+    let body =
+      let vars = vars_of_params ~f:bin_name td in
+      let writer =
+        project_vars
+          (evar ~loc (bin_writer_name td.ptype_name.txt))
+          vars
+          ~record_type:[%type: _ Bin_prot.Type_class.t]
+          ~field_name:"writer"
       in
-      eapply ~loc (evar ~loc @@ "bin_writer_" ^ td.ptype_name.txt) tparam_exprs
-    in
-    let reader =
-      let tparam_exprs =
-        List.map td.ptype_params ~f:(fun tp ->
-          let name = get_type_param_name tp in
-          [%expr
-            ([%e evar ~loc:name.loc @@ "bin_" ^ name.txt] : _ Bin_prot.Type_class.t)
-            .reader])
+      let reader =
+        project_vars
+          (evar ~loc (bin_reader_name td.ptype_name.txt))
+          vars
+          ~record_type:[%type: _ Bin_prot.Type_class.t]
+          ~field_name:"reader"
       in
-      eapply ~loc (evar ~loc @@ "bin_reader_" ^ td.ptype_name.txt) tparam_exprs
-    in
-    let shape =
-      let tparam_exprs =
-        List.map td.ptype_params ~f:(fun tp ->
-          let name = get_type_param_name tp in
-          [%expr
-            ([%e evar ~loc:name.loc @@ "bin_" ^ name.txt] : _ Bin_prot.Type_class.t).shape])
+      let shape =
+        project_vars
+          (evar ~loc (bin_shape_name td.ptype_name.txt))
+          vars
+          ~record_type:[%type: _ Bin_prot.Type_class.t]
+          ~field_name:"shape"
       in
-      eapply ~loc (evar ~loc @@ "bin_shape_" ^ td.ptype_name.txt) tparam_exprs
+      tp_record ~loc ~writer ~reader ~shape
     in
-    let body = tp_record ~loc ~writer ~reader ~shape in
-    value_binding
+    make_value
       ~loc
-      ~pat:(pvar ~loc @@ "bin_" ^ td.ptype_name.txt)
-      ~expr:(eabstract ~loc tparam_patts body)
+      ~type_name:None
+      ~make_value_name:bin_name
+      ~make_arg_name:bin_name
+      ~body
+      td
   ;;
 
   (* Generate code from type definitions *)
@@ -1557,13 +1570,13 @@ module Generate_tp_class = struct
   (* Add code generator to the set of known generators *)
   let gen = Deriving.Generator.make Deriving.Args.empty bin_tp_class
 
-  let extension ~loc ~path ty =
+  let extension ~loc ~hide_loc ~path ty =
     let loc = { loc with loc_ghost = true } in
     tp_record
       ~loc
       ~writer:(Generate_bin_write.type_class_extension ~loc ~path ty)
       ~reader:(Generate_bin_read.type_class_extension ~loc ~path ty)
-      ~shape:(Bin_shape_expand.shape_extension ~loc ty)
+      ~shape:(Bin_shape_expand.shape_extension ~loc ~hide_loc ty)
   ;;
 end
 
@@ -1572,12 +1585,12 @@ let bin_shape =
     "bin_shape"
     ~str_type_decl:Bin_shape_expand.str_gen
     ~sig_type_decl:Bin_shape_expand.sig_gen
-    ~extension:(fun ~loc ~path:_ -> Bin_shape_expand.shape_extension ~loc)
+    ~extension:(fun ~loc ~path:_ -> Bin_shape_expand.shape_extension ~loc ~hide_loc:false)
 ;;
 
 let () =
   Deriving.add "bin_digest" ~extension:(fun ~loc ~path:_ ->
-    Bin_shape_expand.digest_extension ~loc)
+    Bin_shape_expand.digest_extension ~loc ~hide_loc:false)
   |> Deriving.ignore
 ;;
 
@@ -1614,7 +1627,7 @@ let bin_type_class =
     "bin_type_class"
     ~str_type_decl:Generate_tp_class.gen
     ~sig_type_decl:Sig.bin_type_class
-    ~extension:Generate_tp_class.extension
+    ~extension:(Generate_tp_class.extension ~hide_loc:false)
 ;;
 
 let bin_io_named_sig =

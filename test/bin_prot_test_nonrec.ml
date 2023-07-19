@@ -1,5 +1,7 @@
 open Bin_prot.Std
 
+[@@@warning "-unused-module"]
+
 type t = float [@@deriving bin_io]
 
 module M : sig

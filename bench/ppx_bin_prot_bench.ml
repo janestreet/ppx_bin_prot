@@ -1,5 +1,4 @@
 open Core
-open Core_bench
 
 let write_bin_prot writer buf ~pos a =
   let len = writer.Bin_prot.Type_class.size a in
@@ -96,22 +95,23 @@ let read_float_array len =
     then failwithf "got len %d, expected %d" (Array.length arr) len ())
 ;;
 
-let benchs =
-  [ Bench.Test.create ~name:"write float one" (write_float one)
-  ; Bench.Test.create ~name:"read float one" (read_float one)
-  ; Bench.Test.create ~name:"write float pi" (write_float pi)
-  ; Bench.Test.create ~name:"read float pi" (read_float pi)
-  ; Bench.Test.create ~name:"write record one" (write_r r_one)
-  ; Bench.Test.create ~name:"read record one" (read_r r_one)
-  ; Bench.Test.create ~name:"write record pi" (write_r r_pi)
-  ; Bench.Test.create ~name:"read record pi" (read_r r_pi)
-  ; Bench.Test.create ~name:"write inline record one" (write_ir ir_one)
-  ; Bench.Test.create ~name:"read inline record one" (read_ir ir_one)
-  ; Bench.Test.create ~name:"write inline record pi" (write_ir ir_pi)
-  ; Bench.Test.create ~name:"read inline record pi" (read_ir ir_pi)
-  ; Bench.Test.create_indexed ~name:"write float array" ~args:lengths write_float_array
-  ; Bench.Test.create_indexed ~name:"read float array" ~args:lengths read_float_array
-  ]
+let%bench_fun "write float one" = write_float one
+let%bench_fun "read float one" = read_float one
+let%bench_fun "write float pi" = write_float pi
+let%bench_fun "read float pi" = read_float pi
+let%bench_fun "write record one" = write_r r_one
+let%bench_fun "read record one" = read_r r_one
+let%bench_fun "write record pi" = write_r r_pi
+let%bench_fun "read record pi" = read_r r_pi
+let%bench_fun "write inline record one" = write_ir ir_one
+let%bench_fun "read inline record one" = read_ir ir_one
+let%bench_fun "write inline record pi" = write_ir ir_pi
+let%bench_fun "read inline record pi" = read_ir ir_pi
+
+let%bench_fun ("write float array" [@indexed len = lengths]) =
+  Staged.unstage (write_float_array len)
 ;;
 
-let () = Command_unix.run (Bench.make_command benchs)
+let%bench_fun ("read float array" [@indexed len = lengths]) =
+  Staged.unstage (read_float_array len)
+;;
