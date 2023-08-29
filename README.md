@@ -100,3 +100,21 @@ Error: In this `with' constraint, the new definition of t
 
 To workaround that error, simply copy the constraint on the type which has the
 `[@@deriving]` annotation. This will force generating a list of value bindings.
+
+## Local-accepting bin_io functions
+
+This ppx includes the option to support local allocation, a nonstandard OCaml
+extension available at: https://github.com/ocaml-flambda/ocaml-jst
+
+In both structures and signatures, `[@@deriving bin_io ~localize]` (and similarly
+for `bin_write` and `bin_size`) additionally generates definitions for
+`bin_write_t__local` and `bin_size_t__local` which accept locally allocated `t`s.
+
+As well, the following extension points are available:
+
+```ocaml
+[%bin_size_local: t]       : t Bin_prot.Size.sizer_local
+[%bin_write_local: t]      : t Bin_prot.Write.writer_local
+```
+
+No other values from this ppx currently support local allocations.

@@ -14,7 +14,7 @@ module Test = struct
     [ `leaf of 'a
     | `branch of ('a, 'm) branch
     ]
-  [@@deriving bin_io]
+  [@@deriving bin_io ~localize]
 end
 
 [%%expect
@@ -30,12 +30,27 @@ module Test :
     and ('a, 'm) t' = [ `branch of ('a, 'm) branch | `leaf of 'a ]
     val bin_shape_branch : Bin_shape.t -> Bin_shape.t -> Bin_shape.t
     val bin_shape_t' : Bin_shape.t -> Bin_shape.t -> Bin_shape.t
+    val bin_size_branch__local :
+      'a Bin_prot.Size.sizer_local ->
+      'm Bin_prot.Size.sizer_local ->
+      ('a, 'm) branch Bin_prot.Size.sizer_local
+    val bin_size_t'__local :
+      'a Bin_prot.Size.sizer_local ->
+      'm Bin_prot.Size.sizer_local -> ('a, 'm) t' Bin_prot.Size.sizer_local
     val bin_size_branch :
       'a Bin_prot.Size.sizer ->
       'm Bin_prot.Size.sizer -> ('a, 'm) branch Bin_prot.Size.sizer
     val bin_size_t' :
       'a Bin_prot.Size.sizer ->
       'm Bin_prot.Size.sizer -> ('a, 'm) t' Bin_prot.Size.sizer
+    val bin_write_branch__local :
+      'a Bin_prot.Write.writer_local ->
+      'm Bin_prot.Write.writer_local ->
+      ('a, 'm) branch Bin_prot.Write.writer_local
+    val bin_write_t'__local :
+      'a Bin_prot.Write.writer_local ->
+      'm Bin_prot.Write.writer_local ->
+      ('a, 'm) t' Bin_prot.Write.writer_local
     val bin_write_branch :
       'a Bin_prot.Write.writer ->
       'm Bin_prot.Write.writer -> ('a, 'm) branch Bin_prot.Write.writer
