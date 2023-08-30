@@ -209,8 +209,8 @@ end = struct
            (List.map cds ~f:(fun cd ->
               ( cd.pcd_name.txt
               , match cd.pcd_args with
-              | Pcstr_tuple args -> List.map args ~f:(of_type ~hide_loc ~context)
-              | Pcstr_record lds -> [ of_label_decs ~loc ~hide_loc ~context lds ] ))))
+                | Pcstr_tuple args -> List.map args ~f:(of_type ~hide_loc ~context)
+                | Pcstr_record lds -> [ of_label_decs ~loc ~hide_loc ~context lds ] ))))
     | Ptype_abstract -> None
     | Ptype_open -> Some (expr_errorf ~loc "open types not supported")
   ;;
@@ -246,12 +246,12 @@ end = struct
              (map ~f:string_literal (estring __) ||| map ~f:other_expression __)
         +> flag "hide_locations")
       (fun ~loc
-        ~path:_
-        (rec_flag, tds)
-        annotation_opt
-        annotation_provisionally_opt
-        basetype_opt
-        hide_loc ->
+           ~path:_
+           (rec_flag, tds)
+           annotation_opt
+           annotation_provisionally_opt
+           basetype_opt
+           hide_loc ->
         let tds = List.map tds ~f:name_type_params_in_td in
         let context =
           match rec_flag with

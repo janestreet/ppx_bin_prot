@@ -141,12 +141,12 @@ module Sig = struct
         List.concat_map
           [ Bin_shape_expand.sig_gen; bin_write; bin_read; bin_type_class ]
           ~f:(fun gen ->
-            Deriving.Generator.apply
-              ~name:"unused"
-              gen
-              ~ctxt
-              (rf, tds)
-              (if localize then [ "localize", [%expr localize] ] else []))
+          Deriving.Generator.apply
+            ~name:"unused"
+            gen
+            ~ctxt
+            (rf, tds)
+            (if localize then [ "localize", [%expr localize] ] else []))
     in
     let flags = Deriving.Args.(empty +> flag "localize") in
     Deriving.Generator.V2.make flags mk_named_sig
@@ -249,14 +249,14 @@ let generate_poly_type ~loc constructor td =
 ;;
 
 let make_value
-      ~with_local
-      ~loc
-      ~type_constr
-      ~hide_params
-      ~make_value_name
-      ~make_arg_name
-      ~body
-      td
+  ~with_local
+  ~loc
+  ~type_constr
+  ~hide_params
+  ~make_value_name
+  ~make_arg_name
+  ~body
+  td
   =
   let vars = vars_of_params td ~f:make_arg_name ~with_local in
   let pat = pvar ~loc (make_value_name ~with_local td.ptype_name.txt) in
@@ -358,13 +358,13 @@ let aliases_of_tds tds ~function_name ~function_type_name =
 ;;
 
 let alias_local_binding_if_possible
-      ~loc
-      ~localize
-      ~function_name
-      ~function_type_name
-      rec_flag
-      bindings
-      tds
+  ~loc
+  ~localize
+  ~function_name
+  ~function_type_name
+  rec_flag
+  bindings
+  tds
   =
   let rec_flag = really_recursive rec_flag tds in
   if localize
@@ -421,14 +421,14 @@ module Generate_bin_size = struct
 
   (* Conversion of tuples and records *)
   and bin_size_args :
-    'a 'b.
-      Full_type_name.t
-    -> Location.t
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> with_local:bool
-    -> 'b list * expression
+        'a 'b.
+        Full_type_name.t
+        -> Location.t
+        -> ('a -> core_type)
+        -> (Location.t -> string -> 'a -> 'b)
+        -> 'a list
+        -> with_local:bool
+        -> 'b list * expression
     =
     fun full_type_name loc get_tp mk_patt tps ~with_local ->
     let rec loop i = function
@@ -451,23 +451,23 @@ module Generate_bin_size = struct
           let patts, in_expr = loop (i + 1) rest in
           ( patt :: patts
           , [%expr
-            let size = [%e v_expr] in
-            [%e in_expr]] ))
+              let size = [%e v_expr] in
+              [%e in_expr]] ))
       | [] -> assert false
       (* impossible *)
     in
     loop 1 tps
 
   and bin_size_tup_rec :
-    'a 'b.
-      Full_type_name.t
-    -> Location.t
-    -> ('b list -> pattern)
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> with_local:bool
-    -> _
+        'a 'b.
+        Full_type_name.t
+        -> Location.t
+        -> ('b list -> pattern)
+        -> ('a -> core_type)
+        -> (Location.t -> string -> 'a -> 'b)
+        -> 'a list
+        -> with_local:bool
+        -> _
     =
     fun full_type_name loc cnv_patts get_tp mk_patt tp ~with_local ->
     let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp ~with_local in
@@ -754,14 +754,14 @@ module Generate_bin_write = struct
 
   (* Conversion of tuples and records *)
   and bin_write_args :
-    'a 'b.
-      Full_type_name.t
-    -> Location.t
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> with_local:bool
-    -> 'b list * expression
+        'a 'b.
+        Full_type_name.t
+        -> Location.t
+        -> ('a -> core_type)
+        -> (Location.t -> string -> 'a -> 'b)
+        -> 'a list
+        -> with_local:bool
+        -> 'b list * expression
     =
     fun full_type_name loc get_tp mk_patt tp ~with_local ->
     let rec loop i = function
@@ -781,23 +781,23 @@ module Generate_bin_write = struct
           let patts, in_expr = loop (i + 1) rest in
           ( patt :: patts
           , [%expr
-            let pos = [%e v_expr] in
-            [%e in_expr]] ))
+              let pos = [%e v_expr] in
+              [%e in_expr]] ))
       | [] -> assert false
       (* impossible *)
     in
     loop 1 tp
 
   and bin_write_tup_rec :
-    'a 'b.
-      Full_type_name.t
-    -> Location.t
-    -> ('b list -> pattern)
-    -> ('a -> core_type)
-    -> (Location.t -> string -> 'a -> 'b)
-    -> 'a list
-    -> with_local:bool
-    -> _
+        'a 'b.
+        Full_type_name.t
+        -> Location.t
+        -> ('b list -> pattern)
+        -> ('a -> core_type)
+        -> (Location.t -> string -> 'a -> 'b)
+        -> 'a list
+        -> with_local:bool
+        -> _
     =
     fun full_type_name loc cnv_patts get_tp mk_patt tp ~with_local ->
     let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp ~with_local in
@@ -1243,7 +1243,7 @@ module Generate_bin_read = struct
           let call =
             [%expr
               ([%e mk_internal_call full_type_name ty.ptyp_loc ty] buf ~pos_ref vint
-               :> [%t full_type])]
+                :> [%t full_type])]
           in
           let expr =
             match next with
@@ -1495,15 +1495,15 @@ module Generate_bin_read = struct
   ;;
 
   let read_and_vtag_read_bindings
-        ~loc
-        ~read_name
-        ~read_binding_type
-        ~vtag_read_name
-        ~vtag_read_binding_type
-        ~full_type_name
-        ~(td_class : Td_class.t)
-        ~args
-        ~oc_body
+    ~loc
+    ~read_name
+    ~read_binding_type
+    ~vtag_read_name
+    ~vtag_read_binding_type
+    ~full_type_name
+    ~(td_class : Td_class.t)
+    ~args
+    ~oc_body
     =
     let read_binding =
       let body =
@@ -1690,11 +1690,11 @@ module Generate_bin_read = struct
          [ read_binding ]
          [%expr
            ([%e
-             reader_type_class_record
-               ~loc
-               ~read:(evar ~loc read_name)
-               ~vtag_read:(evar ~loc vtag_read_name)]
-            : _ Bin_prot.Type_class.reader)])
+              reader_type_class_record
+                ~loc
+                ~read:(evar ~loc read_name)
+                ~vtag_read:(evar ~loc vtag_read_name)]
+             : _ Bin_prot.Type_class.reader)])
   ;;
 end
 
@@ -1755,12 +1755,12 @@ module Generate_tp_class = struct
     let loc = { loc with loc_ghost = true } in
     [%expr
       ([%e
-        tp_record
-          ~loc
-          ~writer:(Generate_bin_write.type_class_extension ~loc ~path ty)
-          ~reader:(Generate_bin_read.type_class_extension ~loc ~path ty)
-          ~shape:(Bin_shape_expand.shape_extension ~loc ~hide_loc ty)]
-       : _ Bin_prot.Type_class.t)]
+         tp_record
+           ~loc
+           ~writer:(Generate_bin_write.type_class_extension ~loc ~path ty)
+           ~reader:(Generate_bin_read.type_class_extension ~loc ~path ty)
+           ~shape:(Bin_shape_expand.shape_extension ~loc ~hide_loc ty)]
+        : _ Bin_prot.Type_class.t)]
   ;;
 end
 

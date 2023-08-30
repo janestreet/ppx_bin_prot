@@ -509,7 +509,6 @@ module Blowup3 = struct
 end
 
 module Blowup4 = struct
-
   type q1 = unit [@@deriving bin_shape]
   type q2 = q1 * q1 [@@deriving bin_shape]
   type q3 = q2 * q2 [@@deriving bin_shape]
@@ -1842,7 +1841,6 @@ module Annotation_Syntax = struct
     end
 
     module Bin_io_with_annotated_shape_broken = struct
-
       type t = float [@@deriving bin_shape ~annotate:"dollars", bin_io]
 
       let%test_unit _ =

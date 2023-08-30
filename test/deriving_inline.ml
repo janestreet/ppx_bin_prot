@@ -40,7 +40,7 @@ end = struct
 
   let (bin_write_t__local : t Bin_prot.Write.writer_local) =
     fun buf ~pos -> function
-      | A -> Bin_prot.Write.bin_write_int_8bit buf ~pos 0
+    | A -> Bin_prot.Write.bin_write_int_8bit buf ~pos 0
   ;;
 
   let _ = bin_write_t__local
@@ -80,7 +80,7 @@ end = struct
 
   let bin_t =
     ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
-     : _ Bin_prot.Type_class.t)
+      : _ Bin_prot.Type_class.t)
   ;;
 
   let _ = bin_t
@@ -126,41 +126,41 @@ end = struct
   let _ = bin_shape_t
 
   let bin_size_t__local :
-    'a. 'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
+        'a. 'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
     =
     fun _size_of_a__local -> function
-      | A v1 ->
-        let size = 1 in
-        Bin_prot.Common.( + ) size (_size_of_a__local v1)
+    | A v1 ->
+      let size = 1 in
+      Bin_prot.Common.( + ) size (_size_of_a__local v1)
   ;;
 
   let _ = bin_size_t__local
 
   let bin_size_t : 'a. 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer =
     fun _size_of_a -> function
-      | A v1 ->
-        let size = 1 in
-        Bin_prot.Common.( + ) size (_size_of_a v1)
+    | A v1 ->
+      let size = 1 in
+      Bin_prot.Common.( + ) size (_size_of_a v1)
   ;;
 
   let _ = bin_size_t
 
   let bin_write_t__local :
-    'a. 'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
+        'a. 'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
     =
     fun _write_a__local buf ~pos -> function
-      | A v1 ->
-        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
-        _write_a__local buf ~pos v1
+    | A v1 ->
+      let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+      _write_a__local buf ~pos v1
   ;;
 
   let _ = bin_write_t__local
 
   let bin_write_t : 'a. 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer =
     fun _write_a buf ~pos -> function
-      | A v1 ->
-        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
-        _write_a buf ~pos v1
+    | A v1 ->
+      let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+      _write_a buf ~pos v1
   ;;
 
   let _ = bin_write_t
@@ -170,7 +170,7 @@ end = struct
        { size = (fun v -> bin_size_t bin_writer_a.size v)
        ; write = (fun v -> bin_write_t bin_writer_a.write v)
        }
-       : _ Bin_prot.Type_class.writer -> _ Bin_prot.Type_class.writer)
+      : _ Bin_prot.Type_class.writer -> _ Bin_prot.Type_class.writer)
   ;;
 
   let _ = bin_writer_t
@@ -202,7 +202,7 @@ end = struct
        ; vtag_read =
            (fun buf ~pos_ref vtag -> (__bin_read_t__ bin_reader_a.read) buf ~pos_ref vtag)
        }
-       : _ Bin_prot.Type_class.reader -> _ Bin_prot.Type_class.reader)
+      : _ Bin_prot.Type_class.reader -> _ Bin_prot.Type_class.reader)
   ;;
 
   let _ = bin_reader_t
@@ -213,7 +213,7 @@ end = struct
        ; reader = bin_reader_t bin_a.reader
        ; shape = bin_shape_t bin_a.shape
        }
-       : _ Bin_prot.Type_class.t -> _ Bin_prot.Type_class.t)
+      : _ Bin_prot.Type_class.t -> _ Bin_prot.Type_class.t)
   ;;
 
   let _ = bin_t
@@ -348,20 +348,20 @@ end = struct
 
   let rec (bin_write_t__local : t Bin_prot.Write.writer_local) =
     fun buf ~pos -> function
-      | Int v1 ->
-        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
-        bin_write_int__local buf ~pos v1
-      | Add (v1, v2) ->
-        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 1 in
-        let pos = bin_write_u__local buf ~pos v1 in
-        bin_write_u__local buf ~pos v2
+    | Int v1 ->
+      let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+      bin_write_int__local buf ~pos v1
+    | Add (v1, v2) ->
+      let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 1 in
+      let pos = bin_write_u__local buf ~pos v1 in
+      bin_write_u__local buf ~pos v2
 
   and (bin_write_u__local : u Bin_prot.Write.writer_local) =
     fun buf ~pos -> function
-      | Mul (v1, v2) ->
-        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
-        let pos = bin_write_t__local buf ~pos v1 in
-        bin_write_t__local buf ~pos v2
+    | Mul (v1, v2) ->
+      let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+      let pos = bin_write_t__local buf ~pos v1 in
+      bin_write_t__local buf ~pos v2
   ;;
 
   let _ = bin_write_t__local
@@ -440,11 +440,11 @@ end = struct
 
   let bin_t =
     ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
-     : _ Bin_prot.Type_class.t)
+      : _ Bin_prot.Type_class.t)
 
   and bin_u =
     ({ writer = bin_writer_u; reader = bin_reader_u; shape = bin_shape_u }
-     : _ Bin_prot.Type_class.t)
+      : _ Bin_prot.Type_class.t)
   ;;
 
   let _ = bin_t
@@ -495,9 +495,9 @@ end = struct
 
   let (bin_write_t : t Bin_prot.Write.writer) =
     fun buf ~pos -> function
-      | v1, v2 ->
-        let pos = bin_write_array bin_write_float buf ~pos v1 in
-        bin_write_list bin_write_int buf ~pos v2
+    | v1, v2 ->
+      let pos = bin_write_array bin_write_float buf ~pos v1 in
+      bin_write_list bin_write_int buf ~pos v2
   ;;
 
   let _ = bin_write_t
@@ -532,7 +532,7 @@ end = struct
 
   let bin_t =
     ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
-     : _ Bin_prot.Type_class.t)
+      : _ Bin_prot.Type_class.t)
   ;;
 
   let _ = bin_t
@@ -594,11 +594,11 @@ end = struct
 
   let (bin_write_t : t Bin_prot.Write.writer) =
     fun buf ~pos -> function
-      | { a = v1; b = v2; c = v3; d = v4 } ->
-        let pos = Normal.bin_write_t buf ~pos v1 in
-        let pos = Mutable.bin_write_t buf ~pos v2 in
-        let pos = Global.bin_write_t buf ~pos v3 in
-        Ocaml_global.bin_write_t buf ~pos v4
+    | { a = v1; b = v2; c = v3; d = v4 } ->
+      let pos = Normal.bin_write_t buf ~pos v1 in
+      let pos = Mutable.bin_write_t buf ~pos v2 in
+      let pos = Global.bin_write_t buf ~pos v3 in
+      Ocaml_global.bin_write_t buf ~pos v4
   ;;
 
   let _ = bin_write_t
@@ -635,7 +635,7 @@ end = struct
 
   let bin_t =
     ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
-     : _ Bin_prot.Type_class.t)
+      : _ Bin_prot.Type_class.t)
   ;;
 
   let _ = bin_t

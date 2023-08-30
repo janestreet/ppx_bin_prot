@@ -53,13 +53,13 @@ end
 (* Testing [%bin_size{,_local}], [%bin_write{,_local}], and [%bin_read] extension points
    behave the same as the derived functions. *)
 let test
-      (type a)
-      bin_size
-      bin_size_local
-      bin_write
-      bin_write_local
-      bin_read
-      (module M : S with type t = a)
+  (type a)
+  bin_size
+  bin_size_local
+  bin_write
+  bin_write_local
+  bin_read
+  (module M : S with type t = a)
   =
   quickcheck_m
     [%here]
