@@ -540,105 +540,353 @@ end = struct
   [@@@end]
 end
 
-module T_record : sig
-  type t [@@deriving bin_io]
+module Global_fields_with_localize : sig
+  module Record : sig
+    type t [@@deriving bin_io ~localize]
+  end
+
+  module Record_constructor : sig
+    type t [@@deriving bin_io ~localize]
+  end
+
+  module Tuple_constructor : sig
+    type t [@@deriving bin_io ~localize]
+  end
 end = struct
   module T = struct
-    type t [@@deriving bin_io]
+    type t [@@deriving bin_io ~localize]
   end
 
   module Normal = T
   module Mutable = T
   module Global = T
   module Ocaml_global = T
+  module Extension_global = T
 
-  type t =
-    { a : Normal.t
-    ; mutable b : Mutable.t
-    ; c : Global.t [@global]
-    ; d : Ocaml_global.t [@ocaml.global]
-    }
-  [@@deriving_inline bin_io ~hide_locations]
+  module Record = struct
+    type t =
+      { a : Normal.t
+      ; mutable b : Mutable.t
+      ; c : Global.t [@global]
+      ; d : Ocaml_global.t [@ocaml.global]
+      ; e : Extension_global.t
+      }
+    [@@deriving_inline bin_io ~localize ~hide_locations]
 
-  let _ = fun (_ : t) -> ()
+    let _ = fun (_ : t) -> ()
 
-  let bin_shape_t =
-    let _group =
-      Bin_prot.Shape.group
-        (Bin_prot.Shape.Location.of_string "<hidden>")
-        [ ( Bin_prot.Shape.Tid.of_string "t"
-          , []
-          , Bin_prot.Shape.record
-              [ "a", Normal.bin_shape_t
-              ; "b", Mutable.bin_shape_t
-              ; "c", Global.bin_shape_t
-              ; "d", Ocaml_global.bin_shape_t
-              ] )
-        ]
-    in
-    (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) []
-  ;;
+    let bin_shape_t =
+      let _group =
+        Bin_prot.Shape.group
+          (Bin_prot.Shape.Location.of_string "<hidden>")
+          [ ( Bin_prot.Shape.Tid.of_string "t"
+            , []
+            , Bin_prot.Shape.record
+                [ "a", Normal.bin_shape_t
+                ; "b", Mutable.bin_shape_t
+                ; "c", Global.bin_shape_t
+                ; "d", Ocaml_global.bin_shape_t
+                ; "e", Extension_global.bin_shape_t
+                ] )
+          ]
+      in
+      (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) []
+    ;;
 
-  let _ = bin_shape_t
+    let _ = bin_shape_t
 
-  let (bin_size_t : t Bin_prot.Size.sizer) = function
-    | { a = v1; b = v2; c = v3; d = v4 } ->
-      let size = 0 in
-      let size = Bin_prot.Common.( + ) size (Normal.bin_size_t v1) in
-      let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t v2) in
-      let size = Bin_prot.Common.( + ) size (Global.bin_size_t v3) in
-      Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t v4)
-  ;;
+    let (bin_size_t__local : t Bin_prot.Size.sizer_local) = function
+      | { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
+        let size = 0 in
+        let size = Bin_prot.Common.( + ) size (Normal.bin_size_t__local v1) in
+        let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t__local v2) in
+        let size = Bin_prot.Common.( + ) size (Global.bin_size_t__local v3) in
+        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t__local v4) in
+        Bin_prot.Common.( + ) size (Extension_global.bin_size_t__local v5)
+    ;;
 
-  let _ = bin_size_t
+    let _ = bin_size_t__local
+    let bin_size_t = (bin_size_t__local :> _ Bin_prot.Size.sizer)
+    let _ = bin_size_t
 
-  let (bin_write_t : t Bin_prot.Write.writer) =
-    fun buf ~pos -> function
-    | { a = v1; b = v2; c = v3; d = v4 } ->
-      let pos = Normal.bin_write_t buf ~pos v1 in
-      let pos = Mutable.bin_write_t buf ~pos v2 in
-      let pos = Global.bin_write_t buf ~pos v3 in
-      Ocaml_global.bin_write_t buf ~pos v4
-  ;;
+    let (bin_write_t__local : t Bin_prot.Write.writer_local) =
+      fun buf ~pos -> function
+      | { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
+        let pos = Normal.bin_write_t__local buf ~pos v1 in
+        let pos = Mutable.bin_write_t__local buf ~pos v2 in
+        let pos = Global.bin_write_t__local buf ~pos v3 in
+        let pos = Ocaml_global.bin_write_t__local buf ~pos v4 in
+        Extension_global.bin_write_t__local buf ~pos v5
+    ;;
 
-  let _ = bin_write_t
+    let _ = bin_write_t__local
+    let bin_write_t = (bin_write_t__local :> _ Bin_prot.Write.writer)
+    let _ = bin_write_t
 
-  let bin_writer_t =
-    ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
-  ;;
+    let bin_writer_t =
+      ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
+    ;;
 
-  let _ = bin_writer_t
+    let _ = bin_writer_t
 
-  let (__bin_read_t__ : (int -> t) Bin_prot.Read.reader) =
-    fun _buf ~pos_ref _vint ->
-    Bin_prot.Common.raise_variant_wrong_type "deriving_inline.ml.T_record.t" !pos_ref
-  ;;
+    let (__bin_read_t__ : (int -> t) Bin_prot.Read.reader) =
+      fun _buf ~pos_ref _vint ->
+      Bin_prot.Common.raise_variant_wrong_type
+        "deriving_inline.ml.Global_fields_with_localize.Record.t"
+        !pos_ref
+    ;;
 
-  let _ = __bin_read_t__
+    let _ = __bin_read_t__
 
-  let (bin_read_t : t Bin_prot.Read.reader) =
-    fun buf ~pos_ref ->
-    let v_a = Normal.bin_read_t buf ~pos_ref in
-    let v_b = Mutable.bin_read_t buf ~pos_ref in
-    let v_c = Global.bin_read_t buf ~pos_ref in
-    let v_d = Ocaml_global.bin_read_t buf ~pos_ref in
-    { a = v_a; b = v_b; c = v_c; d = v_d }
-  ;;
+    let (bin_read_t : t Bin_prot.Read.reader) =
+      fun buf ~pos_ref ->
+      let v_a = Normal.bin_read_t buf ~pos_ref in
+      let v_b = Mutable.bin_read_t buf ~pos_ref in
+      let v_c = Global.bin_read_t buf ~pos_ref in
+      let v_d = Ocaml_global.bin_read_t buf ~pos_ref in
+      let v_e = Extension_global.bin_read_t buf ~pos_ref in
+      { a = v_a; b = v_b; c = v_c; d = v_d; e = v_e }
+    ;;
 
-  let _ = bin_read_t
+    let _ = bin_read_t
 
-  let bin_reader_t =
-    ({ read = bin_read_t; vtag_read = __bin_read_t__ } : _ Bin_prot.Type_class.reader)
-  ;;
+    let bin_reader_t =
+      ({ read = bin_read_t; vtag_read = __bin_read_t__ } : _ Bin_prot.Type_class.reader)
+    ;;
 
-  let _ = bin_reader_t
+    let _ = bin_reader_t
 
-  let bin_t =
-    ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
-      : _ Bin_prot.Type_class.t)
-  ;;
+    let bin_t =
+      ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
+        : _ Bin_prot.Type_class.t)
+    ;;
 
-  let _ = bin_t
+    let _ = bin_t
 
-  [@@@end]
+    [@@@end]
+  end
+
+  module Record_constructor = struct
+    type t =
+      | T of
+          { a : Normal.t
+          ; mutable b : Mutable.t
+          ; c : Global.t [@global]
+          ; d : Ocaml_global.t [@ocaml.global]
+          ; e : Extension_global.t
+          }
+    [@@deriving_inline bin_io ~localize ~hide_locations]
+
+    let _ = fun (_ : t) -> ()
+
+    let bin_shape_t =
+      let _group =
+        Bin_prot.Shape.group
+          (Bin_prot.Shape.Location.of_string "<hidden>")
+          [ ( Bin_prot.Shape.Tid.of_string "t"
+            , []
+            , Bin_prot.Shape.variant
+                [ ( "T"
+                  , [ Bin_prot.Shape.record
+                        [ "a", Normal.bin_shape_t
+                        ; "b", Mutable.bin_shape_t
+                        ; "c", Global.bin_shape_t
+                        ; "d", Ocaml_global.bin_shape_t
+                        ; "e", Extension_global.bin_shape_t
+                        ]
+                    ] )
+                ] )
+          ]
+      in
+      (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) []
+    ;;
+
+    let _ = bin_shape_t
+
+    let (bin_size_t__local : t Bin_prot.Size.sizer_local) = function
+      | T { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
+        let size = 1 in
+        let size = Bin_prot.Common.( + ) size (Normal.bin_size_t__local v1) in
+        let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t__local v2) in
+        let size = Bin_prot.Common.( + ) size (Global.bin_size_t__local v3) in
+        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t__local v4) in
+        Bin_prot.Common.( + ) size (Extension_global.bin_size_t__local v5)
+    ;;
+
+    let _ = bin_size_t__local
+    let bin_size_t = (bin_size_t__local :> _ Bin_prot.Size.sizer)
+    let _ = bin_size_t
+
+    let (bin_write_t__local : t Bin_prot.Write.writer_local) =
+      fun buf ~pos -> function
+      | T { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
+        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+        let pos = Normal.bin_write_t__local buf ~pos v1 in
+        let pos = Mutable.bin_write_t__local buf ~pos v2 in
+        let pos = Global.bin_write_t__local buf ~pos v3 in
+        let pos = Ocaml_global.bin_write_t__local buf ~pos v4 in
+        Extension_global.bin_write_t__local buf ~pos v5
+    ;;
+
+    let _ = bin_write_t__local
+    let bin_write_t = (bin_write_t__local :> _ Bin_prot.Write.writer)
+    let _ = bin_write_t
+
+    let bin_writer_t =
+      ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
+    ;;
+
+    let _ = bin_writer_t
+
+    let (__bin_read_t__ : (int -> t) Bin_prot.Read.reader) =
+      fun _buf ~pos_ref _vint ->
+      Bin_prot.Common.raise_variant_wrong_type
+        "deriving_inline.ml.Global_fields_with_localize.Record_constructor.t"
+        !pos_ref
+    ;;
+
+    let _ = __bin_read_t__
+
+    let (bin_read_t : t Bin_prot.Read.reader) =
+      fun buf ~pos_ref ->
+      match Bin_prot.Read.bin_read_int_8bit buf ~pos_ref with
+      | 0 ->
+        let v_a = Normal.bin_read_t buf ~pos_ref in
+        let v_b = Mutable.bin_read_t buf ~pos_ref in
+        let v_c = Global.bin_read_t buf ~pos_ref in
+        let v_d = Ocaml_global.bin_read_t buf ~pos_ref in
+        let v_e = Extension_global.bin_read_t buf ~pos_ref in
+        T { a = v_a; b = v_b; c = v_c; d = v_d; e = v_e }
+      | _ ->
+        Bin_prot.Common.raise_read_error
+          (Bin_prot.Common.ReadError.Sum_tag
+             "deriving_inline.ml.Global_fields_with_localize.Record_constructor.t")
+          !pos_ref
+    ;;
+
+    let _ = bin_read_t
+
+    let bin_reader_t =
+      ({ read = bin_read_t; vtag_read = __bin_read_t__ } : _ Bin_prot.Type_class.reader)
+    ;;
+
+    let _ = bin_reader_t
+
+    let bin_t =
+      ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
+        : _ Bin_prot.Type_class.t)
+    ;;
+
+    let _ = bin_t
+
+    [@@@end]
+  end
+
+  module Tuple_constructor = struct
+    type t =
+      | T of
+          Normal.t
+          * (Global.t[@global])
+          * (Ocaml_global.t[@ocaml.global])
+          * Extension_global.t
+    [@@deriving_inline bin_io ~localize ~hide_locations]
+
+    let _ = fun (_ : t) -> ()
+
+    let bin_shape_t =
+      let _group =
+        Bin_prot.Shape.group
+          (Bin_prot.Shape.Location.of_string "<hidden>")
+          [ ( Bin_prot.Shape.Tid.of_string "t"
+            , []
+            , Bin_prot.Shape.variant
+                [ ( "T"
+                  , [ Normal.bin_shape_t
+                    ; Global.bin_shape_t
+                    ; Ocaml_global.bin_shape_t
+                    ; Extension_global.bin_shape_t
+                    ] )
+                ] )
+          ]
+      in
+      (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) []
+    ;;
+
+    let _ = bin_shape_t
+
+    let (bin_size_t__local : t Bin_prot.Size.sizer_local) = function
+      | T (v1, v2, v3, v4) ->
+        let size = 1 in
+        let size = Bin_prot.Common.( + ) size (Normal.bin_size_t__local v1) in
+        let size = Bin_prot.Common.( + ) size (Global.bin_size_t__local v2) in
+        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t__local v3) in
+        Bin_prot.Common.( + ) size (Extension_global.bin_size_t__local v4)
+    ;;
+
+    let _ = bin_size_t__local
+    let bin_size_t = (bin_size_t__local :> _ Bin_prot.Size.sizer)
+    let _ = bin_size_t
+
+    let (bin_write_t__local : t Bin_prot.Write.writer_local) =
+      fun buf ~pos -> function
+      | T (v1, v2, v3, v4) ->
+        let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+        let pos = Normal.bin_write_t__local buf ~pos v1 in
+        let pos = Global.bin_write_t__local buf ~pos v2 in
+        let pos = Ocaml_global.bin_write_t__local buf ~pos v3 in
+        Extension_global.bin_write_t__local buf ~pos v4
+    ;;
+
+    let _ = bin_write_t__local
+    let bin_write_t = (bin_write_t__local :> _ Bin_prot.Write.writer)
+    let _ = bin_write_t
+
+    let bin_writer_t =
+      ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
+    ;;
+
+    let _ = bin_writer_t
+
+    let (__bin_read_t__ : (int -> t) Bin_prot.Read.reader) =
+      fun _buf ~pos_ref _vint ->
+      Bin_prot.Common.raise_variant_wrong_type
+        "deriving_inline.ml.Global_fields_with_localize.Tuple_constructor.t"
+        !pos_ref
+    ;;
+
+    let _ = __bin_read_t__
+
+    let (bin_read_t : t Bin_prot.Read.reader) =
+      fun buf ~pos_ref ->
+      match Bin_prot.Read.bin_read_int_8bit buf ~pos_ref with
+      | 0 ->
+        let arg_1 = Normal.bin_read_t buf ~pos_ref in
+        let arg_2 = Global.bin_read_t buf ~pos_ref in
+        let arg_3 = Ocaml_global.bin_read_t buf ~pos_ref in
+        let arg_4 = Extension_global.bin_read_t buf ~pos_ref in
+        T (arg_1, arg_2, arg_3, arg_4)
+      | _ ->
+        Bin_prot.Common.raise_read_error
+          (Bin_prot.Common.ReadError.Sum_tag
+             "deriving_inline.ml.Global_fields_with_localize.Tuple_constructor.t")
+          !pos_ref
+    ;;
+
+    let _ = bin_read_t
+
+    let bin_reader_t =
+      ({ read = bin_read_t; vtag_read = __bin_read_t__ } : _ Bin_prot.Type_class.reader)
+    ;;
+
+    let _ = bin_reader_t
+
+    let bin_t =
+      ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
+        : _ Bin_prot.Type_class.t)
+    ;;
+
+    let _ = bin_t
+
+    [@@@end]
+  end
 end
