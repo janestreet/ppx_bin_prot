@@ -8,16 +8,99 @@ open Ast_builder.Default
    | Name mangling                                                   |
    +-----------------------------------------------------------------+ *)
 
+module Ppxlib_jane = struct
+  module Ast_builder = struct
+    module Default = struct
+      type mode = Local
+      type modality = Global
+
+      let get_label_declaration_modality ld =
+        match
+          List.partition_tf ld.pld_attributes ~f:(function
+            | { attr_name =
+                  { txt = "extension.global" | "ocaml.global" | "global"; loc = _ }
+              ; attr_payload = PStr []
+              ; attr_loc = _
+              } -> true
+            | _ -> false)
+        with
+        | [], _ -> None, ld
+        | _ :: _, pld_attributes -> Some Global, { ld with pld_attributes }
+      ;;
+
+      let get_tuple_field_modality carg =
+        match
+          List.partition_tf carg.ptyp_attributes ~f:(function
+            | { attr_name =
+                  { txt = "extension.global" | "ocaml.global" | "global"; loc = _ }
+              ; attr_payload = PStr []
+              ; attr_loc = _
+              } -> true
+            | _ -> false)
+        with
+        | [], _ -> None, carg
+        | _ :: _, ptyp_attributes -> Some Global, { carg with ptyp_attributes }
+      ;;
+
+      let coalesce_fun_arity x = x
+    end
+  end
+end
+
+module Locality_mode = struct
+  type t = Ppxlib_jane.Ast_builder.Default.mode option
+end
+
+(* Bring the name [Local] into scope *)
+type mode = Ppxlib_jane.Ast_builder.Default.mode = Local
+
+module Locality_modality = struct
+  type t = Ppxlib_jane.Ast_builder.Default.modality option
+
+  let of_ld ld =
+    let modality, _ = Ppxlib_jane.Ast_builder.Default.get_label_declaration_modality ld in
+    match modality, ld.pld_mutable with
+    | Some _, _ -> modality
+    | None, Mutable -> Some Global
+    | None, Immutable -> None
+  ;;
+
+  let of_cstr_tuple_field core_type =
+    let modality, _ =
+      Ppxlib_jane.Ast_builder.Default.get_tuple_field_modality core_type
+    in
+    modality
+  ;;
+
+  let of_tuple_field _ = None
+
+  let apply modality locality =
+    match (modality : t) with
+    | None -> locality
+    | Some Global -> None
+  ;;
+end
+
 (* type_name is for types like Bin_prot.Size.sizer *)
-let type_name string ~with_local = if with_local then string ^ "_local" else string
+let type_name string ~locality =
+  match locality with
+  | Some Local -> string ^ "_local"
+  | None -> string
+;;
+
 let signature_name = type_name
 
-let value_name ~prefix ~with_local string =
-  prefix ^ string ^ if with_local then "__local" else ""
+let value_name ~prefix ~locality string =
+  let suffix =
+    match locality with
+    | Some Local -> "__local"
+    | None -> ""
+  in
+  prefix ^ string ^ suffix
 ;;
 
 let bin_read_name = value_name ~prefix:"bin_read_"
-let bin_vtag_read_name ~with_local string = "__" ^ bin_read_name string ~with_local ^ "__"
+let bin_vtag_read_name ~locality string = "__" ^ bin_read_name string ~locality ^ "__"
 let bin_reader_name = value_name ~prefix:"bin_reader_"
 let bin_size_name = value_name ~prefix:"bin_size_"
 let bin_write_name = value_name ~prefix:"bin_write_"
@@ -34,14 +117,14 @@ module Typ = struct
     ; wrap_result : loc:Location.t -> core_type -> core_type
     }
 
-  let vtag_reader ~with_local =
-    { type_constr = type_name "Bin_prot.Read.reader" ~with_local
+  let vtag_reader ~locality =
+    { type_constr = type_name "Bin_prot.Read.reader" ~locality
     ; wrap_result = (fun ~loc t -> [%type: int -> [%t t]])
     }
   ;;
 
-  let create type_constr ~with_local =
-    { type_constr = type_name type_constr ~with_local; wrap_result = (fun ~loc:_ x -> x) }
+  let create type_constr ~locality =
+    { type_constr = type_name type_constr ~locality; wrap_result = (fun ~loc:_ x -> x) }
   ;;
 end
 (* +-----------------------------------------------------------------+
@@ -85,15 +168,15 @@ module Sig = struct
 
   let mk ~can_generate_local name_format type_constr =
     Staged.stage (fun td ~localize:localize_requested ->
-      let generate ~with_local =
+      let generate ~locality =
         let loc = td.ptype_loc in
-        let name = Loc.map ~f:(name_format ~with_local) td.ptype_name in
-        let typ = mk_typ ~hide_params:false (type_constr ~with_local) td in
+        let name = Loc.map ~f:(name_format ~locality) td.ptype_name in
+        let typ = mk_typ ~hide_params:false (type_constr ~locality) td in
         psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[])
       in
       if can_generate_local && localize_requested
-      then [ generate ~with_local:false; generate ~with_local:true ]
-      else [ generate ~with_local:false ])
+      then [ generate ~locality:None; generate ~locality:(Some Local) ]
+      else [ generate ~locality:None ])
   ;;
 
   let bin_write =
@@ -132,7 +215,10 @@ module Sig = struct
       match
         mk_named_sig
           ~loc
-          ~sg_name:(signature_name "Bin_prot.Binable.S" ~with_local:localize)
+          ~sg_name:
+            (signature_name
+               "Bin_prot.Binable.S"
+               ~locality:(if localize then Some Local else None))
           ~handle_polymorphic_variant:true
           tds
       with
@@ -194,10 +280,10 @@ let td_is_nil td =
 
 type var = string Located.t
 
-let vars_of_params ~f ~with_local td =
+let vars_of_params ~f ~locality td =
   List.map td.ptype_params ~f:(fun tp ->
     let name = get_type_param_name tp in
-    { name with txt = f ~with_local name.txt })
+    { name with txt = f ~locality name.txt })
 ;;
 
 let map_vars vars ~f = List.map vars ~f:(fun (v : var) -> f ~loc:v.loc v.txt)
@@ -249,7 +335,7 @@ let generate_poly_type ~loc constructor td =
 ;;
 
 let make_value
-  ~with_local
+  ~locality
   ~loc
   ~type_constr
   ~hide_params
@@ -258,13 +344,13 @@ let make_value
   ~body
   td
   =
-  let vars = vars_of_params td ~f:make_arg_name ~with_local in
-  let pat = pvar ~loc (make_value_name ~with_local td.ptype_name.txt) in
+  let vars = vars_of_params td ~f:make_arg_name ~locality in
+  let pat = pvar ~loc (make_value_name ~locality td.ptype_name.txt) in
   let expr = eabstract ~loc (patts_of_vars vars) body in
   let constraint_ =
     if hide_params
-    then Sig.mk_typ ~hide_params (type_constr ~with_local) td
-    else generate_poly_type ~loc (type_constr ~with_local) td
+    then Sig.mk_typ ~hide_params (type_constr ~locality) td
+    else generate_poly_type ~loc (type_constr ~locality) td
   in
   let pat, expr =
     (* When [constraint_] has universally quantified type variables, we need to put the
@@ -345,14 +431,14 @@ let aliases_of_tds tds ~function_name ~function_type_name =
          let expr =
            pexp_coerce
              ~loc
-             (evar ~loc (function_name ~with_local:true td.ptype_name.txt))
+             (evar ~loc (function_name ~locality:(Some Local) td.ptype_name.txt))
              None
              (ptyp_constr
                 ~loc
-                (Located.mk ~loc (Longident.parse (function_type_name ~with_local:false)))
+                (Located.mk ~loc (Longident.parse (function_type_name ~locality:None)))
                 [ ptyp_any ~loc ])
          in
-         let pat = pvar ~loc (function_name ~with_local:false td.ptype_name.txt) in
+         let pat = pvar ~loc (function_name ~locality:None td.ptype_name.txt) in
          value_binding ~loc ~pat ~expr))
   else None
 ;;
@@ -369,7 +455,7 @@ let alias_local_binding_if_possible
   let rec_flag = really_recursive rec_flag tds in
   if localize
   then
-    [ pstr_value ~loc rec_flag (bindings ~with_local:true)
+    [ pstr_value ~loc rec_flag (bindings ~locality:(Some Local))
     ; (match
          aliases_of_tds
            ~function_name
@@ -377,9 +463,9 @@ let alias_local_binding_if_possible
            tds
        with
        | Some values -> pstr_value ~loc Nonrecursive values
-       | None -> pstr_value ~loc rec_flag (bindings ~with_local:false))
+       | None -> pstr_value ~loc rec_flag (bindings ~locality:None))
     ]
-  else [ pstr_value ~loc rec_flag (bindings ~with_local:false) ]
+  else [ pstr_value ~loc rec_flag (bindings ~locality:None) ]
 ;;
 
 (* +-----------------------------------------------------------------+
@@ -387,37 +473,37 @@ let alias_local_binding_if_possible
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_size = struct
-  let mk_abst_call ~loc id args ~with_local =
-    type_constr_conv ~loc id ~f:(bin_size_name ~with_local) args
+  let mk_abst_call ~loc id args ~locality =
+    type_constr_conv ~loc id ~f:(bin_size_name ~locality) args
   ;;
 
   (* Conversion of types *)
-  let rec bin_size_type full_type_name _loc ty ~with_local =
+  let rec bin_size_type full_type_name _loc ty ~locality =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
     match ty.ptyp_desc with
     | Ptyp_constr (id, args) ->
-      `Fun (bin_size_appl_fun full_type_name loc id args ~with_local)
-    | Ptyp_tuple l -> bin_size_tuple full_type_name loc l ~with_local
-    | Ptyp_var parm -> `Fun (evar ~loc (bin_size_arg parm ~with_local))
+      `Fun (bin_size_appl_fun full_type_name loc id args ~locality)
+    | Ptyp_tuple l -> bin_size_tuple full_type_name loc l ~locality
+    | Ptyp_var parm -> `Fun (evar ~loc (bin_size_arg parm ~locality))
     | Ptyp_arrow _ ->
       Location.raise_errorf
         ~loc
         "bin_size_type: cannot convert functions to the binary protocol"
     | Ptyp_variant (row_fields, _, _) ->
-      bin_size_variant full_type_name loc row_fields ~with_local
-    | Ptyp_poly (parms, ty) -> bin_size_poly full_type_name loc parms ty ~with_local
+      bin_size_variant full_type_name loc row_fields ~locality
+    | Ptyp_poly (parms, ty) -> bin_size_poly full_type_name loc parms ty ~locality
     | _ -> Location.raise_errorf ~loc "bin_size_type: unknown type construct"
 
   (* Conversion of polymorphic types *)
-  and bin_size_appl_fun full_type_name loc id args ~with_local =
+  and bin_size_appl_fun full_type_name loc id args ~locality =
     let loc = { loc with loc_ghost = true } in
     let sizers =
       List.map args ~f:(fun ty ->
-        match bin_size_type full_type_name ty.ptyp_loc ty ~with_local with
+        match bin_size_type full_type_name ty.ptyp_loc ty ~locality with
         | `Fun e -> e
         | `Match cases -> pexp_function ~loc:{ ty.ptyp_loc with loc_ghost = true } cases)
     in
-    mk_abst_call ~loc id sizers ~with_local
+    mk_abst_call ~loc id sizers ~locality
 
   (* Conversion of tuples and records *)
   and bin_size_args :
@@ -425,20 +511,22 @@ module Generate_bin_size = struct
         Full_type_name.t
         -> Location.t
         -> ('a -> core_type)
+        -> ('a -> Locality_modality.t)
         -> (Location.t -> string -> 'a -> 'b)
         -> 'a list
-        -> with_local:bool
+        -> locality:Locality_mode.t
         -> 'b list * expression
     =
-    fun full_type_name loc get_tp mk_patt tps ~with_local ->
+    fun full_type_name loc get_tp get_locality_modality mk_patt tps ~locality ->
     let rec loop i = function
       | el :: rest ->
         let tp = get_tp el in
+        let locality = Locality_modality.apply (get_locality_modality el) locality in
         let v_name = "v" ^ Int.to_string i in
         let v_expr =
           let e_name = evar ~loc v_name in
           let expr =
-            match bin_size_type full_type_name loc tp ~with_local with
+            match bin_size_type full_type_name loc tp ~locality with
             | `Fun fun_expr -> eapply ~loc fun_expr [ e_name ]
             | `Match cases -> pexp_match ~loc e_name cases
           in
@@ -464,13 +552,16 @@ module Generate_bin_size = struct
         -> Location.t
         -> ('b list -> pattern)
         -> ('a -> core_type)
+        -> ('a -> Locality_modality.t)
         -> (Location.t -> string -> 'a -> 'b)
         -> 'a list
-        -> with_local:bool
+        -> locality:Locality_mode.t
         -> _
     =
-    fun full_type_name loc cnv_patts get_tp mk_patt tp ~with_local ->
-    let patts, expr = bin_size_args full_type_name loc get_tp mk_patt tp ~with_local in
+    fun full_type_name loc cnv_patts get_tp get_locality_modality mk_patt tp ~locality ->
+    let patts, expr =
+      bin_size_args full_type_name loc get_tp get_locality_modality mk_patt tp ~locality
+    in
     `Match
       [ case
           ~lhs:(cnv_patts patts)
@@ -482,28 +573,44 @@ module Generate_bin_size = struct
       ]
 
   (* Conversion of tuples *)
-  and bin_size_tuple full_type_name loc l ~with_local =
+  and bin_size_tuple full_type_name loc l ~locality =
     let cnv_patts patts = ppat_tuple ~loc patts in
     let get_tp tp = tp in
     let mk_patt loc v_name _ = pvar ~loc v_name in
-    bin_size_tup_rec full_type_name loc cnv_patts get_tp mk_patt l ~with_local
+    bin_size_tup_rec
+      full_type_name
+      loc
+      cnv_patts
+      get_tp
+      Locality_modality.of_tuple_field
+      mk_patt
+      l
+      ~locality
 
   (* Conversion of records *)
-  and bin_size_record full_type_name loc tp ~with_local =
+  and bin_size_record full_type_name loc tp ~locality =
     let cnv_patts lbls = ppat_record ~loc lbls Closed in
     let get_tp ld = ld.pld_type in
     let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
-    bin_size_tup_rec full_type_name loc cnv_patts get_tp mk_patt tp ~with_local
+    bin_size_tup_rec
+      full_type_name
+      loc
+      cnv_patts
+      get_tp
+      Locality_modality.of_ld
+      mk_patt
+      tp
+      ~locality
 
   (* Conversion of variant types *)
-  and bin_size_variant full_type_name loc row_fields ~with_local =
+  and bin_size_variant full_type_name loc row_fields ~locality =
     let nonatom_matchings =
       List.fold_left row_fields ~init:[] ~f:(fun acc rf ->
         match rf.prf_desc with
         | Rtag (_, true, _) -> acc
         | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
           let size_args =
-            match bin_size_type full_type_name tp.ptyp_loc tp ~with_local with
+            match bin_size_type full_type_name tp.ptyp_loc tp ~locality with
             | `Fun fun_expr -> eapply ~loc fun_expr [ [%expr args] ]
             | `Match cases -> pexp_match ~loc [%expr args] cases
           in
@@ -520,7 +627,7 @@ module Generate_bin_size = struct
           let loc = { ty.ptyp_loc with loc_ghost = true } in
           (match ty.ptyp_desc with
            | Ptyp_constr (id, args) ->
-             let call = bin_size_appl_fun full_type_name loc id args ~with_local in
+             let call = bin_size_appl_fun full_type_name loc id args ~locality in
              case
                ~lhs:(ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc "v"))
                ~guard:None
@@ -536,13 +643,13 @@ module Generate_bin_size = struct
     `Match (List.rev matchings)
 
   (* Polymorphic record fields *)
-  and bin_size_poly full_type_name loc parms tp ~with_local =
+  and bin_size_poly full_type_name loc parms tp ~locality =
     let bindings =
       let mk_binding parm =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
-          ~pat:(pvar ~loc (bin_size_arg parm.txt ~with_local))
+          ~pat:(pvar ~loc (bin_size_arg parm.txt ~locality))
           ~expr:
             [%expr
               fun _v ->
@@ -550,7 +657,7 @@ module Generate_bin_size = struct
       in
       List.map parms ~f:mk_binding
     in
-    match bin_size_type full_type_name loc tp ~with_local with
+    match bin_size_type full_type_name loc tp ~locality with
     | `Fun fun_expr -> `Fun (pexp_let ~loc Nonrecursive bindings fun_expr)
     | `Match matchings ->
       `Match
@@ -568,7 +675,7 @@ module Generate_bin_size = struct
 
   (* Conversion of sum types *)
 
-  let bin_size_sum full_type_name loc alts ~with_local =
+  let bin_size_sum full_type_name loc alts ~locality =
     let n_alts = List.length alts in
     let size_tag =
       if n_alts <= 256
@@ -595,7 +702,14 @@ module Generate_bin_size = struct
           let get_tp tp = tp in
           let mk_patt loc v_name _ = pvar ~loc v_name in
           let patts, size_args =
-            bin_size_args full_type_name loc get_tp mk_patt args ~with_local
+            bin_size_args
+              full_type_name
+              loc
+              get_tp
+              Locality_modality.of_cstr_tuple_field
+              mk_patt
+              args
+              ~locality
           in
           let args =
             match patts with
@@ -615,7 +729,14 @@ module Generate_bin_size = struct
           let get_tp ld = ld.pld_type in
           let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
           let patts, size_args =
-            bin_size_args full_type_name loc get_tp mk_patt fields ~with_local
+            bin_size_args
+              full_type_name
+              loc
+              get_tp
+              Locality_modality.of_ld
+              mk_patt
+              fields
+              ~locality
           in
           case
             ~lhs:(pconstruct cd (Some (cnv_patts patts)))
@@ -656,28 +777,28 @@ module Generate_bin_size = struct
     | `Match matchings -> pexp_function ~loc matchings
   ;;
 
-  let sizer_body_of_td ~path td ~with_local =
+  let sizer_body_of_td ~path td ~locality =
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let res =
       match td.ptype_kind with
-      | Ptype_variant alts -> bin_size_sum full_type_name loc alts ~with_local
-      | Ptype_record flds -> bin_size_record full_type_name loc flds ~with_local
+      | Ptype_variant alts -> bin_size_sum full_type_name loc alts ~locality
+      | Ptype_record flds -> bin_size_record full_type_name loc flds ~locality
       | Ptype_open ->
         Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
       | Ptype_abstract ->
         (match td.ptype_manifest with
          | None -> bin_size_nil full_type_name loc
-         | Some ty -> bin_size_type full_type_name loc ty ~with_local)
+         | Some ty -> bin_size_type full_type_name loc ty ~locality)
     in
     make_fun ~loc ~don't_expand:(td_is_nil td) res
   ;;
 
   (* Generate code from type definitions *)
-  let bin_size_td ~should_omit_type_params ~loc ~path td ~with_local =
-    let body = sizer_body_of_td ~path td ~with_local in
+  let bin_size_td ~should_omit_type_params ~loc ~path td ~locality =
+    let body = sizer_body_of_td ~path td ~locality in
     make_value
-      ~with_local
+      ~locality
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Size.sizer")
       ~hide_params:should_omit_type_params
@@ -690,8 +811,8 @@ module Generate_bin_size = struct
   let bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds) localize =
     let tds = List.map tds ~f:name_type_params_in_td in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
-    let bindings ~with_local =
-      List.map tds ~f:(bin_size_td ~should_omit_type_params ~loc ~path ~with_local)
+    let bindings ~locality =
+      List.map tds ~f:(bin_size_td ~should_omit_type_params ~loc ~path ~locality)
     in
     alias_local_binding_if_possible
       ~loc
@@ -703,8 +824,8 @@ module Generate_bin_size = struct
       tds
   ;;
 
-  let extension ~loc ~path:_ ty ~with_local =
-    bin_size_type Full_type_name.absent loc ty ~with_local
+  let extension ~loc ~path:_ ty ~locality =
+    bin_size_type Full_type_name.absent loc ty ~locality
     |> make_fun ~loc:{ loc with loc_ghost = true }
   ;;
 end
@@ -714,8 +835,8 @@ end
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_write = struct
-  let mk_abst_call ~loc id args ~with_local =
-    type_constr_conv ~loc id ~f:(bin_write_name ~with_local) args
+  let mk_abst_call ~loc id args ~locality =
+    type_constr_conv ~loc id ~f:(bin_write_name ~locality) args
   ;;
 
   let mk_buf_pos_call ~loc e v =
@@ -724,33 +845,33 @@ module Generate_bin_write = struct
   ;;
 
   (* Conversion of types *)
-  let rec bin_write_type full_type_name _loc ty ~with_local =
+  let rec bin_write_type full_type_name _loc ty ~locality =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
     match ty.ptyp_desc with
     | Ptyp_constr (id, args) ->
-      `Fun (bin_write_appl_fun full_type_name loc id args ~with_local)
-    | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~with_local
-    | Ptyp_var parm -> `Fun (evar ~loc (bin_write_arg parm ~with_local))
+      `Fun (bin_write_appl_fun full_type_name loc id args ~locality)
+    | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~locality
+    | Ptyp_var parm -> `Fun (evar ~loc (bin_write_arg parm ~locality))
     | Ptyp_arrow _ ->
       Location.raise_errorf
         ~loc
         "bin_write_type: cannot convert functions to the binary protocol"
     | Ptyp_variant (row_fields, _, _) ->
-      bin_write_variant full_type_name loc row_fields ~with_local
-    | Ptyp_poly (parms, ty) -> bin_write_poly full_type_name loc parms ty ~with_local
+      bin_write_variant full_type_name loc row_fields ~locality
+    | Ptyp_poly (parms, ty) -> bin_write_poly full_type_name loc parms ty ~locality
     | _ -> Location.raise_errorf ~loc "bin_write_type: unknown type construct"
 
   (* Conversion of polymorphic types *)
-  and bin_write_appl_fun full_type_name loc id args ~with_local =
+  and bin_write_appl_fun full_type_name loc id args ~locality =
     let loc = { loc with loc_ghost = true } in
     let writers =
       List.map args ~f:(fun ty ->
-        match bin_write_type full_type_name ty.ptyp_loc ty ~with_local with
+        match bin_write_type full_type_name ty.ptyp_loc ty ~locality with
         | `Fun e -> e
         | `Match cases ->
           [%expr fun buf ~pos -> [%e pexp_function ~loc:ty.ptyp_loc cases]])
     in
-    mk_abst_call ~loc id writers ~with_local
+    mk_abst_call ~loc id writers ~locality
 
   (* Conversion of tuples and records *)
   and bin_write_args :
@@ -758,19 +879,21 @@ module Generate_bin_write = struct
         Full_type_name.t
         -> Location.t
         -> ('a -> core_type)
+        -> ('a -> Locality_modality.t)
         -> (Location.t -> string -> 'a -> 'b)
         -> 'a list
-        -> with_local:bool
+        -> locality:Locality_mode.t
         -> 'b list * expression
     =
-    fun full_type_name loc get_tp mk_patt tp ~with_local ->
+    fun full_type_name loc get_tp get_locality_modality mk_patt tp ~locality ->
     let rec loop i = function
       | el :: rest ->
         let tp = get_tp el in
+        let locality = Locality_modality.apply (get_locality_modality el) locality in
         let v_name = "v" ^ Int.to_string i in
         let v_expr =
           let e_name = evar ~loc v_name in
-          match bin_write_type full_type_name loc tp ~with_local with
+          match bin_write_type full_type_name loc tp ~locality with
           | `Fun fun_expr -> mk_buf_pos_call ~loc fun_expr e_name
           | `Match cases -> pexp_match ~loc e_name cases
         in
@@ -794,31 +917,50 @@ module Generate_bin_write = struct
         -> Location.t
         -> ('b list -> pattern)
         -> ('a -> core_type)
+        -> ('a -> Locality_modality.t)
         -> (Location.t -> string -> 'a -> 'b)
         -> 'a list
-        -> with_local:bool
+        -> locality:Locality_mode.t
         -> _
     =
-    fun full_type_name loc cnv_patts get_tp mk_patt tp ~with_local ->
-    let patts, expr = bin_write_args full_type_name loc get_tp mk_patt tp ~with_local in
+    fun full_type_name loc cnv_patts get_tp get_locality_modality mk_patt tp ~locality ->
+    let patts, expr =
+      bin_write_args full_type_name loc get_tp get_locality_modality mk_patt tp ~locality
+    in
     `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
 
   (* Conversion of tuples *)
-  and bin_write_tuple full_type_name loc l ~with_local =
+  and bin_write_tuple full_type_name loc l ~locality =
     let cnv_patts patts = ppat_tuple ~loc patts in
     let get_tp tp = tp in
     let mk_patt loc v_name _ = pvar ~loc v_name in
-    bin_write_tup_rec full_type_name loc cnv_patts get_tp mk_patt l ~with_local
+    bin_write_tup_rec
+      full_type_name
+      loc
+      cnv_patts
+      get_tp
+      Locality_modality.of_tuple_field
+      mk_patt
+      l
+      ~locality
 
   (* Conversion of records *)
-  and bin_write_record full_type_name loc tp ~with_local =
+  and bin_write_record full_type_name loc tp ~locality =
     let cnv_patts lbls = ppat_record ~loc lbls Closed in
     let get_tp ld = ld.pld_type in
     let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
-    bin_write_tup_rec full_type_name loc cnv_patts get_tp mk_patt tp ~with_local
+    bin_write_tup_rec
+      full_type_name
+      loc
+      cnv_patts
+      get_tp
+      Locality_modality.of_ld
+      mk_patt
+      tp
+      ~locality
 
   (* Conversion of variant types *)
-  and bin_write_variant full_type_name loc row_fields ~with_local =
+  and bin_write_variant full_type_name loc row_fields ~locality =
     let matchings =
       List.map row_fields ~f:(fun row_field ->
         match row_field.prf_desc with
@@ -834,7 +976,7 @@ module Generate_bin_write = struct
                   [%e eint ~loc (Ocaml_common.Btype.hash_variant cnstr)]]
         | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
           let write_args =
-            match bin_write_type full_type_name tp.ptyp_loc tp ~with_local with
+            match bin_write_type full_type_name tp.ptyp_loc tp ~locality with
             | `Fun fun_expr -> mk_buf_pos_call fun_expr ~loc [%expr args]
             | `Match cases -> pexp_match ~loc [%expr args] cases
           in
@@ -854,7 +996,7 @@ module Generate_bin_write = struct
           let loc = { ty.ptyp_loc with loc_ghost = true } in
           (match ty.ptyp_desc with
            | Ptyp_constr (id, args) ->
-             let call = bin_write_appl_fun full_type_name loc id args ~with_local in
+             let call = bin_write_appl_fun full_type_name loc id args ~locality in
              case
                ~lhs:(ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc "v"))
                ~guard:None
@@ -864,13 +1006,13 @@ module Generate_bin_write = struct
     `Match matchings
 
   (* Polymorphic record fields *)
-  and bin_write_poly full_type_name loc parms tp ~with_local =
+  and bin_write_poly full_type_name loc parms tp ~locality =
     let bindings =
       let mk_binding parm =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
-          ~pat:(pvar ~loc (bin_write_arg parm.txt ~with_local))
+          ~pat:(pvar ~loc (bin_write_arg parm.txt ~locality))
           ~expr:
             [%expr
               fun _buf ~pos:_ _v ->
@@ -878,7 +1020,7 @@ module Generate_bin_write = struct
       in
       List.map parms ~f:mk_binding
     in
-    match bin_write_type full_type_name loc tp ~with_local with
+    match bin_write_type full_type_name loc tp ~locality with
     | `Fun fun_expr -> `Fun (pexp_let ~loc Nonrecursive bindings fun_expr)
     | `Match matchings ->
       `Match
@@ -896,7 +1038,7 @@ module Generate_bin_write = struct
 
   (* Conversion of sum types *)
 
-  let bin_write_sum full_type_name loc alts ~with_local =
+  let bin_write_sum full_type_name loc alts ~locality =
     let n_alts = List.length alts in
     let write_tag =
       if n_alts <= 256
@@ -928,7 +1070,14 @@ module Generate_bin_write = struct
           let get_tp tp = tp in
           let mk_patt loc v_name _ = pvar ~loc v_name in
           let patts, write_args =
-            bin_write_args full_type_name loc get_tp mk_patt args ~with_local
+            bin_write_args
+              full_type_name
+              loc
+              get_tp
+              Locality_modality.of_cstr_tuple_field
+              mk_patt
+              args
+              ~locality
           in
           let args =
             match patts with
@@ -947,7 +1096,14 @@ module Generate_bin_write = struct
           let get_tp ld = ld.pld_type in
           let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
           let patts, expr =
-            bin_write_args full_type_name loc get_tp mk_patt fields ~with_local
+            bin_write_args
+              full_type_name
+              loc
+              get_tp
+              Locality_modality.of_ld
+              mk_patt
+              fields
+              ~locality
           in
           case
             ~lhs:(pconstruct cd (Some (cnv_patts patts)))
@@ -983,19 +1139,19 @@ module Generate_bin_write = struct
     [%expr { size = [%e size]; write = [%e write] }]
   ;;
 
-  let writer_body_of_td ~path td ~with_local =
+  let writer_body_of_td ~path td ~locality =
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let res =
       match td.ptype_kind with
-      | Ptype_variant alts -> bin_write_sum full_type_name loc alts ~with_local
-      | Ptype_record flds -> bin_write_record full_type_name loc flds ~with_local
+      | Ptype_variant alts -> bin_write_sum full_type_name loc alts ~locality
+      | Ptype_record flds -> bin_write_record full_type_name loc flds ~locality
       | Ptype_open ->
         Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
       | Ptype_abstract ->
         (match td.ptype_manifest with
          | None -> bin_write_nil full_type_name loc
-         | Some ty -> bin_write_type full_type_name loc ty ~with_local)
+         | Some ty -> bin_write_type full_type_name loc ty ~locality)
     in
     make_fun ~loc ~don't_expand:(td_is_nil td) res
   ;;
@@ -1007,10 +1163,10 @@ module Generate_bin_write = struct
   ;;
 
   (* Generate code from type definitions *)
-  let bin_write_td ~should_omit_type_params ~loc ~path ~with_local td =
-    let body = writer_body_of_td ~path ~with_local td in
+  let bin_write_td ~should_omit_type_params ~loc ~path ~locality td =
+    let body = writer_body_of_td ~path ~locality td in
     make_value
-      ~with_local
+      ~locality
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Write.writer")
       ~hide_params:should_omit_type_params
@@ -1020,24 +1176,24 @@ module Generate_bin_write = struct
       td
   ;;
 
-  let bin_writer_td ~loc td ~with_local =
+  let bin_writer_td ~loc td ~locality =
     let body =
-      let vars = vars_of_params td ~f:bin_writer_name ~with_local in
+      let vars = vars_of_params td ~f:bin_writer_name ~locality in
       writer_type_class_record
         ~loc
         ~size:
           (project_vars
-             (evar ~loc (bin_size_name td.ptype_name.txt ~with_local))
+             (evar ~loc (bin_size_name td.ptype_name.txt ~locality))
              vars
              ~field_name:"size")
         ~write:
           (project_vars
-             (evar ~loc (bin_write_name td.ptype_name.txt ~with_local))
+             (evar ~loc (bin_write_name td.ptype_name.txt ~locality))
              vars
              ~field_name:"write")
     in
     make_value
-      ~with_local
+      ~locality
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Type_class.writer")
       ~hide_params:true
@@ -1051,8 +1207,8 @@ module Generate_bin_write = struct
     let tds = List.map tds ~f:name_type_params_in_td in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
     let write_bindings =
-      let write_bindings ~with_local =
-        List.map tds ~f:(bin_write_td ~should_omit_type_params ~loc ~path ~with_local)
+      let write_bindings ~locality =
+        List.map tds ~f:(bin_write_td ~should_omit_type_params ~loc ~path ~locality)
       in
       alias_local_binding_if_possible
         ~loc
@@ -1064,10 +1220,8 @@ module Generate_bin_write = struct
         tds
     in
     let writer_bindings =
-      let writer_bindings ~with_local =
-        List.map tds ~f:(bin_writer_td ~loc ~with_local)
-      in
-      [ writer_bindings ~with_local:false ]
+      let writer_bindings ~locality = List.map tds ~f:(bin_writer_td ~loc ~locality) in
+      [ writer_bindings ~locality:None ]
     in
     List.concat
       [ Generate_bin_size.bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds) localize
@@ -1081,20 +1235,20 @@ module Generate_bin_write = struct
     Deriving.Generator.make flags (bin_write ~f_sharp_compatible:false)
   ;;
 
-  let function_extension ~loc ~path:_ ty ~with_local =
-    bin_write_type Full_type_name.absent loc ty ~with_local
+  let function_extension ~loc ~path:_ ty ~locality =
+    bin_write_type Full_type_name.absent loc ty ~locality
     |> make_fun ~loc:{ loc with loc_ghost = true }
   ;;
 
   let type_class_extension ~loc ~path:_ ty =
-    let with_local = false in
+    let locality = None in
     let loc = { loc with loc_ghost = true } in
     let full_type_name = Full_type_name.absent in
     let size =
-      Generate_bin_size.bin_size_type full_type_name loc ty ~with_local
+      Generate_bin_size.bin_size_type full_type_name loc ty ~locality
       |> Generate_bin_size.make_fun ~loc
     in
-    let write = bin_write_type full_type_name loc ty ~with_local |> make_fun ~loc in
+    let write = bin_write_type full_type_name loc ty ~locality |> make_fun ~loc in
     [%expr
       ([%e writer_type_class_record ~loc ~size ~write] : _ Bin_prot.Type_class.writer)]
   ;;
@@ -1105,7 +1259,7 @@ end
    +-----------------------------------------------------------------+ *)
 
 module Generate_bin_read = struct
-  let with_local = false
+  let locality = None
 
   let full_type_name_or_anonymous full_type_name =
     match Full_type_name.get full_type_name with
@@ -1118,7 +1272,7 @@ module Generate_bin_read = struct
       ~loc
       id
       args
-      ~f:((if internal then bin_vtag_read_name else bin_read_name) ~with_local)
+      ~f:((if internal then bin_vtag_read_name else bin_read_name) ~locality)
   ;;
 
   (* Conversion of type paths *)
@@ -1163,7 +1317,7 @@ module Generate_bin_read = struct
       let expr = bin_read_path_fun id.loc id args_expr in
       `Closed expr
     | Ptyp_tuple tp -> bin_read_tuple full_type_name loc tp
-    | Ptyp_var parm -> `Closed (evar ~loc (conv_name parm ~with_local))
+    | Ptyp_var parm -> `Closed (evar ~loc (conv_name parm ~locality))
     | Ptyp_arrow _ ->
       Location.raise_errorf ~loc "bin_read_arrow: cannot convert functions"
     | Ptyp_variant (row_fields, _, _) ->
@@ -1283,7 +1437,7 @@ module Generate_bin_read = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
-          ~pat:(pvar ~loc (conv_name parm.txt ~with_local))
+          ~pat:(pvar ~loc (conv_name parm.txt ~locality))
           ~expr:
             [%expr
               fun _buf ~pos_ref ->
@@ -1554,8 +1708,8 @@ module Generate_bin_read = struct
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let oc_body = reader_body_of_td td full_type_name in
-    let read_name = bin_read_name td.ptype_name.txt ~with_local in
-    let vtag_read_name = bin_vtag_read_name td.ptype_name.txt ~with_local in
+    let read_name = bin_read_name td.ptype_name.txt ~locality in
+    let vtag_read_name = bin_vtag_read_name td.ptype_name.txt ~locality in
     let vtag_read_binding_type, read_binding_type =
       (* It seems like that we could simplify this code if we used [make_value] here and
          in read_and_vtag_read_bindings. That requires more refactoring, as
@@ -1564,12 +1718,12 @@ module Generate_bin_read = struct
       if should_omit_type_params
       then None, None
       else
-        ( Some (generate_poly_type ~loc (Typ.vtag_reader ~with_local) td)
-        , Some
-            (generate_poly_type ~loc (Typ.create "Bin_prot.Read.reader" ~with_local) td) )
+        ( Some (generate_poly_type ~loc (Typ.vtag_reader ~locality) td)
+        , Some (generate_poly_type ~loc (Typ.create "Bin_prot.Read.reader" ~locality) td)
+        )
     in
     let read_binding, vtag_read_binding =
-      let args = vars_of_params td ~f:conv_name ~with_local in
+      let args = vars_of_params td ~f:conv_name ~locality in
       read_and_vtag_read_bindings
         ~loc
         ~read_name
@@ -1581,7 +1735,7 @@ module Generate_bin_read = struct
         ~args
         ~oc_body
     in
-    let vars = vars_of_params td ~f:bin_reader_name ~with_local in
+    let vars = vars_of_params td ~f:bin_reader_name ~locality in
     let read =
       let call = project_vars (evar ~loc read_name) vars ~field_name:"read" in
       alias_or_fun call [%expr fun buf ~pos_ref -> [%e call] buf ~pos_ref]
@@ -1593,7 +1747,7 @@ module Generate_bin_read = struct
     let reader_binding =
       let body = reader_type_class_record ~loc ~read ~vtag_read in
       make_value
-        ~with_local
+        ~locality
         ~loc
         ~type_constr:(Typ.create "Bin_prot.Type_class.reader")
         ~hide_params:true
@@ -1700,7 +1854,7 @@ end
 
 (* Generator for binary protocol type classes *)
 module Generate_tp_class = struct
-  let with_local = false
+  let locality = None
 
   let tp_record ~loc ~writer ~reader ~shape =
     [%expr { writer = [%e writer]; reader = [%e reader]; shape = [%e shape] }]
@@ -1709,29 +1863,29 @@ module Generate_tp_class = struct
   let bin_tp_class_td td =
     let loc = td.ptype_loc in
     let body =
-      let vars = vars_of_params ~f:bin_name ~with_local td in
+      let vars = vars_of_params ~f:bin_name ~locality td in
       let writer =
         project_vars
-          (evar ~loc (bin_writer_name td.ptype_name.txt ~with_local))
+          (evar ~loc (bin_writer_name td.ptype_name.txt ~locality))
           vars
           ~field_name:"writer"
       in
       let reader =
         project_vars
-          (evar ~loc (bin_reader_name td.ptype_name.txt ~with_local))
+          (evar ~loc (bin_reader_name td.ptype_name.txt ~locality))
           vars
           ~field_name:"reader"
       in
       let shape =
         project_vars
-          (evar ~loc (bin_shape_name td.ptype_name.txt ~with_local))
+          (evar ~loc (bin_shape_name td.ptype_name.txt ~locality))
           vars
           ~field_name:"shape"
       in
       tp_record ~loc ~writer ~reader ~shape
     in
     make_value
-      ~with_local
+      ~locality
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Type_class.t")
       ~hide_params:true
@@ -1779,11 +1933,13 @@ let () =
 ;;
 
 let bin_size =
-  Deriving.add "bin_size" ~extension:(Generate_bin_size.extension ~with_local:false)
+  Deriving.add "bin_size" ~extension:(Generate_bin_size.extension ~locality:None)
 ;;
 
 let () =
-  Deriving.add "bin_size_local" ~extension:(Generate_bin_size.extension ~with_local:true)
+  Deriving.add
+    "bin_size_local"
+    ~extension:(Generate_bin_size.extension ~locality:(Some Local))
   |> Deriving.ignore
 ;;
 
@@ -1792,13 +1948,13 @@ let bin_write =
     "bin_write"
     ~str_type_decl:Generate_bin_write.gen
     ~sig_type_decl:Sig.bin_write
-    ~extension:(Generate_bin_write.function_extension ~with_local:false)
+    ~extension:(Generate_bin_write.function_extension ~locality:None)
 ;;
 
 let () =
   Deriving.add
     "bin_write_local"
-    ~extension:(Generate_bin_write.function_extension ~with_local:true)
+    ~extension:(Generate_bin_write.function_extension ~locality:(Some Local))
   |> Deriving.ignore
 ;;
 

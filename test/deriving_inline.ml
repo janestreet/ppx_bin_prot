@@ -599,10 +599,10 @@ end = struct
       | { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
         let size = 0 in
         let size = Bin_prot.Common.( + ) size (Normal.bin_size_t__local v1) in
-        let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t__local v2) in
-        let size = Bin_prot.Common.( + ) size (Global.bin_size_t__local v3) in
-        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t__local v4) in
-        Bin_prot.Common.( + ) size (Extension_global.bin_size_t__local v5)
+        let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t v2) in
+        let size = Bin_prot.Common.( + ) size (Global.bin_size_t v3) in
+        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t v4) in
+        Bin_prot.Common.( + ) size (Extension_global.bin_size_t v5)
     ;;
 
     let _ = bin_size_t__local
@@ -613,10 +613,10 @@ end = struct
       fun buf ~pos -> function
       | { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
         let pos = Normal.bin_write_t__local buf ~pos v1 in
-        let pos = Mutable.bin_write_t__local buf ~pos v2 in
-        let pos = Global.bin_write_t__local buf ~pos v3 in
-        let pos = Ocaml_global.bin_write_t__local buf ~pos v4 in
-        Extension_global.bin_write_t__local buf ~pos v5
+        let pos = Mutable.bin_write_t buf ~pos v2 in
+        let pos = Global.bin_write_t buf ~pos v3 in
+        let pos = Ocaml_global.bin_write_t buf ~pos v4 in
+        Extension_global.bin_write_t buf ~pos v5
     ;;
 
     let _ = bin_write_t__local
@@ -707,10 +707,10 @@ end = struct
       | T { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
         let size = 1 in
         let size = Bin_prot.Common.( + ) size (Normal.bin_size_t__local v1) in
-        let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t__local v2) in
-        let size = Bin_prot.Common.( + ) size (Global.bin_size_t__local v3) in
-        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t__local v4) in
-        Bin_prot.Common.( + ) size (Extension_global.bin_size_t__local v5)
+        let size = Bin_prot.Common.( + ) size (Mutable.bin_size_t v2) in
+        let size = Bin_prot.Common.( + ) size (Global.bin_size_t v3) in
+        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t v4) in
+        Bin_prot.Common.( + ) size (Extension_global.bin_size_t v5)
     ;;
 
     let _ = bin_size_t__local
@@ -722,10 +722,10 @@ end = struct
       | T { a = v1; b = v2; c = v3; d = v4; e = v5 } ->
         let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
         let pos = Normal.bin_write_t__local buf ~pos v1 in
-        let pos = Mutable.bin_write_t__local buf ~pos v2 in
-        let pos = Global.bin_write_t__local buf ~pos v3 in
-        let pos = Ocaml_global.bin_write_t__local buf ~pos v4 in
-        Extension_global.bin_write_t__local buf ~pos v5
+        let pos = Mutable.bin_write_t buf ~pos v2 in
+        let pos = Global.bin_write_t buf ~pos v3 in
+        let pos = Ocaml_global.bin_write_t buf ~pos v4 in
+        Extension_global.bin_write_t buf ~pos v5
     ;;
 
     let _ = bin_write_t__local
@@ -818,9 +818,9 @@ end = struct
       | T (v1, v2, v3, v4) ->
         let size = 1 in
         let size = Bin_prot.Common.( + ) size (Normal.bin_size_t__local v1) in
-        let size = Bin_prot.Common.( + ) size (Global.bin_size_t__local v2) in
-        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t__local v3) in
-        Bin_prot.Common.( + ) size (Extension_global.bin_size_t__local v4)
+        let size = Bin_prot.Common.( + ) size (Global.bin_size_t v2) in
+        let size = Bin_prot.Common.( + ) size (Ocaml_global.bin_size_t v3) in
+        Bin_prot.Common.( + ) size (Extension_global.bin_size_t v4)
     ;;
 
     let _ = bin_size_t__local
@@ -832,9 +832,9 @@ end = struct
       | T (v1, v2, v3, v4) ->
         let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
         let pos = Normal.bin_write_t__local buf ~pos v1 in
-        let pos = Global.bin_write_t__local buf ~pos v2 in
-        let pos = Ocaml_global.bin_write_t__local buf ~pos v3 in
-        Extension_global.bin_write_t__local buf ~pos v4
+        let pos = Global.bin_write_t buf ~pos v2 in
+        let pos = Ocaml_global.bin_write_t buf ~pos v3 in
+        Extension_global.bin_write_t buf ~pos v4
     ;;
 
     let _ = bin_write_t__local
