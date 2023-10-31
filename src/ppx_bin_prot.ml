@@ -8,45 +8,6 @@ open Ast_builder.Default
    | Name mangling                                                   |
    +-----------------------------------------------------------------+ *)
 
-module Ppxlib_jane = struct
-  module Ast_builder = struct
-    module Default = struct
-      type mode = Local
-      type modality = Global
-
-      let get_label_declaration_modality ld =
-        match
-          List.partition_tf ld.pld_attributes ~f:(function
-            | { attr_name =
-                  { txt = "extension.global" | "ocaml.global" | "global"; loc = _ }
-              ; attr_payload = PStr []
-              ; attr_loc = _
-              } -> true
-            | _ -> false)
-        with
-        | [], _ -> None, ld
-        | _ :: _, pld_attributes -> Some Global, { ld with pld_attributes }
-      ;;
-
-      let get_tuple_field_modality carg =
-        match
-          List.partition_tf carg.ptyp_attributes ~f:(function
-            | { attr_name =
-                  { txt = "extension.global" | "ocaml.global" | "global"; loc = _ }
-              ; attr_payload = PStr []
-              ; attr_loc = _
-              } -> true
-            | _ -> false)
-        with
-        | [], _ -> None, carg
-        | _ :: _, ptyp_attributes -> Some Global, { carg with ptyp_attributes }
-      ;;
-
-      let coalesce_fun_arity x = x
-    end
-  end
-end
-
 module Locality_mode = struct
   type t = Ppxlib_jane.Ast_builder.Default.mode option
 end
