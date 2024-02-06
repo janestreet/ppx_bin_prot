@@ -567,8 +567,8 @@ end = struct
     type t =
       { a : Normal.t
       ; mutable b : Mutable.t
-      ; c : Global.t [@global]
-      ; d : Ocaml_global.t [@ocaml.global]
+      ; c : Global.t
+      ; d : Ocaml_global.t
       ; e : Extension_global.t
       }
     [@@deriving_inline bin_io ~localize ~hide_locations]
@@ -671,8 +671,8 @@ end = struct
       | T of
           { a : Normal.t
           ; mutable b : Mutable.t
-          ; c : Global.t [@global]
-          ; d : Ocaml_global.t [@ocaml.global]
+          ; c : Global.t
+          ; d : Ocaml_global.t
           ; e : Extension_global.t
           }
     [@@deriving_inline bin_io ~localize ~hide_locations]
@@ -783,12 +783,7 @@ end = struct
   end
 
   module Tuple_constructor = struct
-    type t =
-      | T of
-          Normal.t
-          * (Global.t[@global])
-          * (Ocaml_global.t[@ocaml.global])
-          * Extension_global.t
+    type t = T of Normal.t * Global.t * Ocaml_global.t * Extension_global.t
     [@@deriving_inline bin_io ~localize ~hide_locations]
 
     let _ = fun (_ : t) -> ()

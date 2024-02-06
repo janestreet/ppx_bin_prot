@@ -1961,7 +1961,7 @@ let bin_io =
 ;;
 
 (* [ppx_bin_prot] is used in dotnet libraries to generate code that is compatible
-   with F#. Ocaml and F# have largely overlapping syntaxes, but some minor differences
+   with F#. OCaml and F# have largely overlapping syntaxes, but some minor differences
    need to be taken into account:
 
    1. F# doesn't have labeled arguments so all labeled arguments are changed into not

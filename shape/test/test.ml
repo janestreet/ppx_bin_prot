@@ -1230,7 +1230,7 @@ module Dub = struct
     ;;
 
     (* [gen_t n] constructs a type-expression for t<n>, which if tricky to
-       express directly in Ocaml. But possible. See [gen_t'] above. *)
+       express directly in OCaml. But possible. See [gen_t'] above. *)
     let gen_t n =
       assert (n >= 0);
       let open Shape in

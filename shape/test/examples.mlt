@@ -27,7 +27,8 @@ module Record = struct
   type r = { x : int } [@@deriving bin_shape]
 end
 
-[%%expect {|
+[%%expect
+  {|
 module Record : sig type r = { x : int; } val bin_shape_r : Shape.t end
 |}]
 
@@ -35,7 +36,8 @@ module Annotation_syntax = struct
   type t = int [@@deriving bin_shape ~annotate:"my-annotation"]
 end
 
-[%%expect {|
+[%%expect
+  {|
 module Annotation_syntax : sig type t = int val bin_shape_t : Shape.t end
 |}]
 
@@ -111,7 +113,7 @@ module Inheriting_from_recursive_polymorphic_variant = struct
     [ `C
     | t1
     ]
-  [@@deriving bin_shape]
+  [@@deriving bin_shape ~hide_locations]
 
   let (_ : Shape.Digest.t) = Shape.eval_to_digest bin_shape_t2
 end
@@ -120,7 +122,7 @@ end
   {|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:112:6: The shape for an inherited type is not described as a polymorphic-variant: (Application ...())").
+ "<hidden>: The shape for an inherited type is not described as a polymorphic-variant: (Application ...())").
 |}]
 
 module Inheriting_from_annotated_polymorphic_variant = struct
@@ -134,7 +136,7 @@ module Inheriting_from_annotated_polymorphic_variant = struct
     [ `C
     | t1
     ]
-  [@@deriving bin_shape]
+  [@@deriving bin_shape ~hide_locations]
 
   let (_ : Shape.Digest.t) = Shape.eval_to_digest bin_shape_t2
 end
@@ -143,7 +145,7 @@ end
   {|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:135:6: The shape for an inherited type is not described as a polymorphic-variant: (Annotate my-t1 ...)").
+ "<hidden>: The shape for an inherited type is not described as a polymorphic-variant: (Annotate my-t1 ...)").
 |}]
 
 module Duplicated_variant_constructor_allowed = struct
@@ -191,7 +193,7 @@ module Duplicated_variant_constructor_Same_type_diff_serialization = struct
     [ v1
     | v2
     ]
-  [@@deriving bin_shape]
+  [@@deriving bin_shape ~hide_locations]
 
   let (_ : Shape.Digest.t) = Shape.eval_to_digest bin_shape_t
 end
@@ -200,7 +202,7 @@ end
   {|
 Exception:
 (Failure
- "ppx/ppx_bin_prot/shape/test/examples.mlt:191:4: Different shapes for duplicated polymorphic constructor: `a").
+ "<hidden>: Different shapes for duplicated polymorphic constructor: `a").
 |}]
 
 module No_such_bin_shape_syntax = struct
@@ -217,7 +219,8 @@ module Shapeless = struct
   type t = int
 end
 
-[%%expect {|
+[%%expect
+  {|
 module Shapeless : sig type t = int end
 |}]
 
@@ -225,7 +228,8 @@ module Annotation_requires_shape_on_subtypes = struct
   type t = Shapeless.t [@@deriving bin_shape ~annotate:"my-annotation"]
 end
 
-[%%expect {|
+[%%expect
+  {|
 Line _, characters _-_:
 Error: Unbound value Shapeless.bin_shape_t
 |}]
@@ -244,7 +248,8 @@ module Basetype_syntax = struct
   type t = Shapeless.t [@@deriving bin_shape ~basetype:"my-base"]
 end
 
-[%%expect {|
+[%%expect
+  {|
 module Basetype_syntax : sig type t = int val bin_shape_t : Shape.t end
 |}]
 

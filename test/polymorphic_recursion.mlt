@@ -19,12 +19,12 @@ module Simple :
       'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
     val bin_write_t : 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer
     val bin_writer_t :
-      'a Bin_prot.Type_class.writer0 -> 'a t Bin_prot.Type_class.writer0
+      'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer
     val __bin_read_t__ :
       'a Bin_prot.Read.reader -> (int -> 'a t) Bin_prot.Read.reader
     val bin_read_t : 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader
     val bin_reader_t :
-      'a Bin_prot.Type_class.reader0 -> 'a t Bin_prot.Type_class.reader0
-    val bin_t : 'a Bin_prot.Type_class.t0 -> 'a t Bin_prot.Type_class.t0
+      'a Bin_prot.Type_class.reader -> 'a t Bin_prot.Type_class.reader
+    val bin_t : 'a Bin_prot.Type_class.t -> 'a t Bin_prot.Type_class.t
   end
 |}]
