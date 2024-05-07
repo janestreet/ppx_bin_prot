@@ -1,3 +1,10 @@
+## Release v0.17.0
+
+* Support sizing and writing locally-allocated values. This can be enabled by passing a flag to the deriver: `[@@deriving bin_io ~localize]`.
+
+* Hide source code locations in test output to avoid noise when restyling etc.
+
+
 ## Release v0.16.0
 
 - Several new expression forms are supported to derive the individual
