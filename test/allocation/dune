@@ -1,0 +1,5 @@
+(library
+ (name ppx_bin_prot_tests_allocation)
+ (libraries core expect_test_helpers_core)
+ (preprocess
+  (pps ppx_jane)))

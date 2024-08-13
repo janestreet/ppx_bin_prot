@@ -1,7 +1,8 @@
-open! Core
+open! Base
 open Bigarray
 open Bin_prot
 open Common
+open Stdio
 open Utils
 open Type_class
 open Bin_prot.Std
@@ -105,20 +106,17 @@ module Common = struct
     let pos_ref = ref 0 in
     let els_len = Read.bin_read_int_64bit buf ~pos_ref in
     Expect_test_helpers_base.require_equal
-      [%here]
       (module Int)
       ~message:"pos_ref for length incorrect"
       !pos_ref
       8;
     Expect_test_helpers_base.require_equal
-      [%here]
       (module Int)
       ~message:"els_len disagrees with bin_size"
       els_len
       (bin_size_els els);
     let new_els = bin_read_els buf ~pos_ref in
     Expect_test_helpers_base.require_equal
-      [%here]
       (module struct
         type t = float poly_id Array.t [@@deriving equal, sexp_of]
       end)
@@ -133,20 +131,17 @@ let%test_module "Inline" =
     let check_compatible m xs derived_tc inline_writer inline_reader inline_tc =
       List.iter xs ~f:(fun x ->
         Expect_test_helpers_base.require_equal
-          [%here]
           (module Int)
           ~message:"incorrect size from inline writer"
           (derived_tc.writer.size x)
           (inline_writer.size x);
         Expect_test_helpers_base.require_equal
-          [%here]
           (module Int)
           ~message:"incorrect size from inline type class"
           (derived_tc.writer.size x)
           (inline_tc.writer.size x);
         let buf = bin_dump derived_tc.writer x in
         Expect_test_helpers_base.require_equal
-          [%here]
           (module struct
             type t = buf
 
@@ -156,7 +151,6 @@ let%test_module "Inline" =
           buf
           (bin_dump inline_writer x);
         Expect_test_helpers_base.require_equal
-          [%here]
           (module struct
             type t = buf
 
@@ -173,26 +167,22 @@ let%test_module "Inline" =
         let _, len = val_and_len derived_tc.reader in
         let x', len' = val_and_len inline_reader in
         Expect_test_helpers_base.require_equal
-          [%here]
           m
           ~message:"incorrect value from inline reader"
           x
           x';
         Expect_test_helpers_base.require_equal
-          [%here]
           (module Int)
           ~message:"incorrect length from inline reader"
           len
           len';
         let x', len' = val_and_len inline_tc.reader in
         Expect_test_helpers_base.require_equal
-          [%here]
           m
           ~message:"incorrect value from inline type class"
           x
           x';
         Expect_test_helpers_base.require_equal
-          [%here]
           (module Int)
           ~message:"incorrect length from inline type class"
           len
@@ -325,14 +315,12 @@ let%test_module "Local" =
         then print_endline "bin_write_t = bin_write_t__local"
         else (
           Expect_test_helpers_base.require_equal
-            [%here]
             (module Int)
             ~message:"bin_size differs from bin_size_local"
             (M.bin_size_t x)
             (M.bin_size_t__local x);
           let buf = bin_dump M.bin_writer_t x in
           Expect_test_helpers_base.require_equal
-            [%here]
             (module struct
               type t = buf
 
@@ -347,7 +335,6 @@ let%test_module "Local" =
             buf;
           let x' = M.bin_read_t buf ~pos_ref:(ref 0) in
           Expect_test_helpers_base.require_equal
-            [%here]
             (module M)
             ~message:"bin_write_local -> bin_read roundtrip failed"
             x

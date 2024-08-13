@@ -66,11 +66,10 @@ module Test :
       'b Bin_prot.Type_class.writer -> ('a, 'b) t' Bin_prot.Type_class.writer
     val __bin_read_branch__ :
       'a Bin_prot.Read.reader ->
-      'm Bin_prot.Read.reader ->
-      (int -> ('a, 'm) branch) Bin_prot.Read.reader
+      'm Bin_prot.Read.reader -> ('a, 'm) branch Bin_prot.Read.vtag_reader
     val __bin_read_t'__ :
       'a Bin_prot.Read.reader ->
-      'm Bin_prot.Read.reader -> (int -> ('a, 'm) t') Bin_prot.Read.reader
+      'm Bin_prot.Read.reader -> ('a, 'm) t' Bin_prot.Read.vtag_reader
     val bin_read_branch :
       'a Bin_prot.Read.reader ->
       'm Bin_prot.Read.reader -> ('a, 'm) branch Bin_prot.Read.reader

@@ -1,5 +1,6 @@
 (library
  (name ppx_bin_prot_tests)
- (libraries core expect_test_helpers_core)
+ (libraries base base_bigstring bin_prot.shape
+   expect_test_helpers_core.expect_test_helpers_base stdio)
  (preprocess
   (pps ppx_jane)))

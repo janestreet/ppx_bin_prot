@@ -21,7 +21,7 @@ module Simple :
     val bin_writer_t :
       'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer
     val __bin_read_t__ :
-      'a Bin_prot.Read.reader -> (int -> 'a t) Bin_prot.Read.reader
+      'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader
     val bin_read_t : 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader
     val bin_reader_t :
       'a Bin_prot.Type_class.reader -> 'a t Bin_prot.Type_class.reader

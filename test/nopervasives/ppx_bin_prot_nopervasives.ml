@@ -1,4 +1,5 @@
-open Core
+open Base
+open Bin_prot.Std
 
 module M = struct
   type t =

@@ -1,0 +1,15 @@
+module Empty_variant : sig
+  type t = | [@@deriving bin_io]
+end = struct
+  type t = | [@@deriving bin_io]
+end
+
+[%%expect {| |}]
+
+module Empty_polymorphic_variant : sig
+  type t = private [> ] [@@deriving bin_io]
+end = struct
+  type t = private [> ] [@@deriving bin_io]
+end
+
+[%%expect {| |}]
