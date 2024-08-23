@@ -9,34 +9,43 @@ open Ast_builder.Default
    +-----------------------------------------------------------------+ *)
 
 module Locality_mode = struct
-  type t = Ppxlib_jane.Ast_builder.Default.mode option
+  type t = Local
 end
 
-(* Bring the name [Local] into scope *)
-type mode = Ppxlib_jane.Ast_builder.Default.mode = Local
+open Locality_mode
 
 module Locality_modality = struct
-  type t = Ppxlib_jane.Ast_builder.Default.modality option
+  type t = Global
+
+  let of_modalities (modalities : Ppxlib_jane.modality list) =
+    List.find_map modalities ~f:(function
+      | Modality "global" -> Some Global
+      | Modality _ -> None)
+  ;;
 
   let of_ld ld =
-    let modality, _ = Ppxlib_jane.Ast_builder.Default.get_label_declaration_modality ld in
-    match modality, ld.pld_mutable with
-    | Some _, _ -> modality
-    | None, Mutable -> Some Global
-    | None, Immutable -> None
+    let modalities, _ =
+      Ppxlib_jane.Ast_builder.Default.get_label_declaration_modalities ld
+    in
+    match of_modalities modalities with
+    | Some _ as some -> some
+    | None ->
+      (match ld.pld_mutable with
+       | Mutable -> Some Global
+       | Immutable -> None)
   ;;
 
   let of_cstr_tuple_field core_type =
-    let modality, _ =
-      Ppxlib_jane.Ast_builder.Default.get_tuple_field_modality core_type
+    let modalities, _ =
+      Ppxlib_jane.Ast_builder.Default.get_tuple_field_modalities core_type
     in
-    modality
+    of_modalities modalities
   ;;
 
   let of_tuple_field _ = None
 
-  let apply modality locality =
-    match (modality : t) with
+  let apply modality (locality : Locality_mode.t option) =
+    match (modality : t option) with
     | None -> locality
     | Some Global -> None
   ;;
@@ -483,10 +492,10 @@ module Generate_bin_size = struct
     Full_type_name.t
     -> Location.t
     -> ('a -> core_type)
-    -> ('a -> Locality_modality.t)
+    -> ('a -> Locality_modality.t option)
     -> (Location.t -> string -> 'a -> 'b)
     -> 'a list
-    -> locality:Locality_mode.t
+    -> locality:Locality_mode.t option
     -> 'b list * expression
     =
     fun full_type_name loc get_tp get_locality_modality mk_patt tps ~locality ->
@@ -524,10 +533,10 @@ module Generate_bin_size = struct
     -> Location.t
     -> ('b list -> pattern)
     -> ('a -> core_type)
-    -> ('a -> Locality_modality.t)
+    -> ('a -> Locality_modality.t option)
     -> (Location.t -> string -> 'a -> 'b)
     -> 'a list
-    -> locality:Locality_mode.t
+    -> locality:Locality_mode.t option
     -> _
     =
     fun full_type_name loc cnv_patts get_tp get_locality_modality mk_patt tp ~locality ->
@@ -875,10 +884,10 @@ module Generate_bin_write = struct
     Full_type_name.t
     -> Location.t
     -> ('a -> core_type)
-    -> ('a -> Locality_modality.t)
+    -> ('a -> Locality_modality.t option)
     -> (Location.t -> string -> 'a -> 'b)
     -> 'a list
-    -> locality:Locality_mode.t
+    -> locality:Locality_mode.t option
     -> 'b list * expression
     =
     fun full_type_name loc get_tp get_locality_modality mk_patt tp ~locality ->
@@ -913,10 +922,10 @@ module Generate_bin_write = struct
     -> Location.t
     -> ('b list -> pattern)
     -> ('a -> core_type)
-    -> ('a -> Locality_modality.t)
+    -> ('a -> Locality_modality.t option)
     -> (Location.t -> string -> 'a -> 'b)
     -> 'a list
-    -> locality:Locality_mode.t
+    -> locality:Locality_mode.t option
     -> _
     =
     fun full_type_name loc cnv_patts get_tp get_locality_modality mk_patt tp ~locality ->
