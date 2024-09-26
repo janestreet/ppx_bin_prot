@@ -138,7 +138,7 @@ let of_type
           [%e traverse t]]
   and traverse typ =
     let loc = { typ.ptyp_loc with loc_ghost = true } in
-    match typ.ptyp_desc with
+    match Ppxlib_jane.Shim.Core_type_desc.of_parsetree typ.ptyp_desc with
     | Ptyp_constr (lid, typs) ->
       let args = List.map typs ~f:traverse in
       (match
@@ -163,6 +163,7 @@ let of_type
     | Ptyp_variant (_, _, Some _)
     | Ptyp_any
     | Ptyp_arrow _
+    | Ptyp_unboxed_tuple _
     | Ptyp_object _
     | Ptyp_class _
     | Ptyp_alias _
