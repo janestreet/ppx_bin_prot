@@ -159,17 +159,7 @@ let of_type
         ~loc
         ~hide_loc
         (List.map rows ~f:(fun row -> traverse_row ~loc ~typ_for_error:typ row))
-    | Ptyp_poly (_, _)
-    | Ptyp_variant (_, _, Some _)
-    | Ptyp_any
-    | Ptyp_arrow _
-    | Ptyp_unboxed_tuple _
-    | Ptyp_object _
-    | Ptyp_class _
-    | Ptyp_alias _
-    | Ptyp_package _
-    | Ptyp_extension _ ->
-      expr_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
+    | _ -> expr_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
   in
   traverse
 ;;
