@@ -128,10 +128,10 @@ end = struct
   let bin_size_t__local
     : 'a. 'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
     =
-    fun _size_of_a__local -> function
+    fun _size_of_a -> function
     | A v1 ->
       let size = 1 in
-      Bin_prot.Common.( + ) size (_size_of_a__local v1)
+      Bin_prot.Common.( + ) size (_size_of_a v1)
   ;;
 
   let _ = bin_size_t__local
@@ -148,10 +148,10 @@ end = struct
   let bin_write_t__local
     : 'a. 'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
     =
-    fun _write_a__local buf ~pos -> function
+    fun _write_a buf ~pos -> function
     | A v1 ->
       let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
-      _write_a__local buf ~pos v1
+      _write_a buf ~pos v1
   ;;
 
   let _ = bin_write_t__local
@@ -891,14 +891,26 @@ end
 module Global_fields_with_localize : sig
   module Record : sig
     type t [@@deriving bin_io ~localize]
+
+    module T1 : sig
+      type 'a t [@@deriving bin_io ~localize]
+    end
   end
 
   module Record_constructor : sig
     type t [@@deriving bin_io ~localize]
+
+    module T1 : sig
+      type 'a t [@@deriving bin_io ~localize]
+    end
   end
 
   module Tuple_constructor : sig
     type t [@@deriving bin_io ~localize]
+
+    module T1 : sig
+      type 'a t [@@deriving bin_io ~localize]
+    end
   end
 end = struct
   module T = struct
@@ -1012,6 +1024,119 @@ end = struct
     let _ = bin_t
 
     [@@@end]
+
+    module T1 = struct
+      type 'a t = { global_ x : 'a } [@@deriving_inline bin_io ~localize ~hide_locations]
+
+      let _ = fun (_ : 'a t) -> ()
+
+      let bin_shape_t =
+        let _group =
+          Bin_prot.Shape.group
+            (Bin_prot.Shape.Location.of_string "<hidden>")
+            [ ( Bin_prot.Shape.Tid.of_string "t"
+              , [ Bin_prot.Shape.Vid.of_string "a" ]
+              , Bin_prot.Shape.record
+                  [ ( "x"
+                    , Bin_prot.Shape.var
+                        (Bin_prot.Shape.Location.of_string "<hidden>")
+                        (Bin_prot.Shape.Vid.of_string "a") )
+                  ] )
+            ]
+        in
+        fun a -> (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) [ a ]
+      ;;
+
+      let _ = bin_shape_t
+
+      let bin_size_t__local
+        : 'a. 'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
+        =
+        fun _size_of_a -> function
+        | { x = v1 } ->
+          let size = 0 in
+          Bin_prot.Common.( + ) size (_size_of_a v1)
+      ;;
+
+      let _ = bin_size_t__local
+
+      let bin_size_t : 'a. 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer =
+        fun _size_of_a -> function
+        | { x = v1 } ->
+          let size = 0 in
+          Bin_prot.Common.( + ) size (_size_of_a v1)
+      ;;
+
+      let _ = bin_size_t
+
+      let bin_write_t__local
+        : 'a. 'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
+        =
+        fun _write_a buf ~pos -> function
+        | { x = v1 } -> _write_a buf ~pos v1
+      ;;
+
+      let _ = bin_write_t__local
+
+      let bin_write_t : 'a. 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer =
+        fun _write_a buf ~pos -> function
+        | { x = v1 } -> _write_a buf ~pos v1
+      ;;
+
+      let _ = bin_write_t
+
+      let bin_writer_t =
+        (fun bin_writer_a ->
+           { size = (fun v -> bin_size_t bin_writer_a.size v)
+           ; write = (fun v -> bin_write_t bin_writer_a.write v)
+           }
+         : _ Bin_prot.Type_class.writer -> _ Bin_prot.Type_class.writer)
+      ;;
+
+      let _ = bin_writer_t
+
+      let __bin_read_t__ : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader =
+        fun _of__a _buf ~pos_ref _vint ->
+        Bin_prot.Common.raise_variant_wrong_type
+          "deriving_inline.ml.Global_fields_with_localize.Record.T1.t"
+          !pos_ref
+      ;;
+
+      let _ = __bin_read_t__
+
+      let bin_read_t : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader =
+        fun _of__a buf ~pos_ref ->
+        let v_x = _of__a buf ~pos_ref in
+        { x = v_x }
+      ;;
+
+      let _ = bin_read_t
+
+      let bin_reader_t =
+        (fun bin_reader_a ->
+           { read = (fun buf ~pos_ref -> (bin_read_t bin_reader_a.read) buf ~pos_ref)
+           ; vtag_read =
+               (fun buf ~pos_ref vtag ->
+                 (__bin_read_t__ bin_reader_a.read) buf ~pos_ref vtag)
+           }
+         : _ Bin_prot.Type_class.reader -> _ Bin_prot.Type_class.reader)
+      ;;
+
+      let _ = bin_reader_t
+
+      let bin_t =
+        (fun bin_a ->
+           { writer = bin_writer_t bin_a.writer
+           ; reader = bin_reader_t bin_a.reader
+           ; shape = bin_shape_t bin_a.shape
+           }
+         : _ Bin_prot.Type_class.t -> _ Bin_prot.Type_class.t)
+      ;;
+
+      let _ = bin_t
+
+      [@@@end]
+    end
   end
 
   module Record_constructor = struct
@@ -1128,6 +1253,135 @@ end = struct
     let _ = bin_t
 
     [@@@end]
+
+    module T1 = struct
+      type 'a t = T of { global_ x : 'a }
+      [@@deriving_inline bin_io ~localize ~hide_locations]
+
+      let _ = fun (_ : 'a t) -> ()
+
+      let bin_shape_t =
+        let _group =
+          Bin_prot.Shape.group
+            (Bin_prot.Shape.Location.of_string "<hidden>")
+            [ ( Bin_prot.Shape.Tid.of_string "t"
+              , [ Bin_prot.Shape.Vid.of_string "a" ]
+              , Bin_prot.Shape.variant
+                  [ ( "T"
+                    , [ Bin_prot.Shape.record
+                          [ ( "x"
+                            , Bin_prot.Shape.var
+                                (Bin_prot.Shape.Location.of_string "<hidden>")
+                                (Bin_prot.Shape.Vid.of_string "a") )
+                          ]
+                      ] )
+                  ] )
+            ]
+        in
+        fun a -> (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) [ a ]
+      ;;
+
+      let _ = bin_shape_t
+
+      let bin_size_t__local
+        : 'a. 'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
+        =
+        fun _size_of_a -> function
+        | T { x = v1 } ->
+          let size = 1 in
+          Bin_prot.Common.( + ) size (_size_of_a v1)
+      ;;
+
+      let _ = bin_size_t__local
+
+      let bin_size_t : 'a. 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer =
+        fun _size_of_a -> function
+        | T { x = v1 } ->
+          let size = 1 in
+          Bin_prot.Common.( + ) size (_size_of_a v1)
+      ;;
+
+      let _ = bin_size_t
+
+      let bin_write_t__local
+        : 'a. 'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
+        =
+        fun _write_a buf ~pos -> function
+        | T { x = v1 } ->
+          let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+          _write_a buf ~pos v1
+      ;;
+
+      let _ = bin_write_t__local
+
+      let bin_write_t : 'a. 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer =
+        fun _write_a buf ~pos -> function
+        | T { x = v1 } ->
+          let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+          _write_a buf ~pos v1
+      ;;
+
+      let _ = bin_write_t
+
+      let bin_writer_t =
+        (fun bin_writer_a ->
+           { size = (fun v -> bin_size_t bin_writer_a.size v)
+           ; write = (fun v -> bin_write_t bin_writer_a.write v)
+           }
+         : _ Bin_prot.Type_class.writer -> _ Bin_prot.Type_class.writer)
+      ;;
+
+      let _ = bin_writer_t
+
+      let __bin_read_t__ : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader =
+        fun _of__a _buf ~pos_ref _vint ->
+        Bin_prot.Common.raise_variant_wrong_type
+          "deriving_inline.ml.Global_fields_with_localize.Record_constructor.T1.t"
+          !pos_ref
+      ;;
+
+      let _ = __bin_read_t__
+
+      let bin_read_t : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader =
+        fun _of__a buf ~pos_ref ->
+        match Bin_prot.Read.bin_read_int_8bit buf ~pos_ref with
+        | 0 ->
+          let v_x = _of__a buf ~pos_ref in
+          T { x = v_x }
+        | _ ->
+          Bin_prot.Common.raise_read_error
+            (Bin_prot.Common.ReadError.Sum_tag
+               "deriving_inline.ml.Global_fields_with_localize.Record_constructor.T1.t")
+            !pos_ref
+      ;;
+
+      let _ = bin_read_t
+
+      let bin_reader_t =
+        (fun bin_reader_a ->
+           { read = (fun buf ~pos_ref -> (bin_read_t bin_reader_a.read) buf ~pos_ref)
+           ; vtag_read =
+               (fun buf ~pos_ref vtag ->
+                 (__bin_read_t__ bin_reader_a.read) buf ~pos_ref vtag)
+           }
+         : _ Bin_prot.Type_class.reader -> _ Bin_prot.Type_class.reader)
+      ;;
+
+      let _ = bin_reader_t
+
+      let bin_t =
+        (fun bin_a ->
+           { writer = bin_writer_t bin_a.writer
+           ; reader = bin_reader_t bin_a.reader
+           ; shape = bin_shape_t bin_a.shape
+           }
+         : _ Bin_prot.Type_class.t -> _ Bin_prot.Type_class.t)
+      ;;
+
+      let _ = bin_t
+
+      [@@@end]
+    end
   end
 
   module Tuple_constructor = struct
@@ -1236,5 +1490,130 @@ end = struct
     let _ = bin_t
 
     [@@@end]
+
+    module T1 = struct
+      type 'a t = T of global_ 'a [@@deriving_inline bin_io ~localize ~hide_locations]
+
+      let _ = fun (_ : 'a t) -> ()
+
+      let bin_shape_t =
+        let _group =
+          Bin_prot.Shape.group
+            (Bin_prot.Shape.Location.of_string "<hidden>")
+            [ ( Bin_prot.Shape.Tid.of_string "t"
+              , [ Bin_prot.Shape.Vid.of_string "a" ]
+              , Bin_prot.Shape.variant
+                  [ ( "T"
+                    , [ Bin_prot.Shape.var
+                          (Bin_prot.Shape.Location.of_string "<hidden>")
+                          (Bin_prot.Shape.Vid.of_string "a")
+                      ] )
+                  ] )
+            ]
+        in
+        fun a -> (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) [ a ]
+      ;;
+
+      let _ = bin_shape_t
+
+      let bin_size_t__local
+        : 'a. 'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
+        =
+        fun _size_of_a -> function
+        | T v1 ->
+          let size = 1 in
+          Bin_prot.Common.( + ) size (_size_of_a v1)
+      ;;
+
+      let _ = bin_size_t__local
+
+      let bin_size_t : 'a. 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer =
+        fun _size_of_a -> function
+        | T v1 ->
+          let size = 1 in
+          Bin_prot.Common.( + ) size (_size_of_a v1)
+      ;;
+
+      let _ = bin_size_t
+
+      let bin_write_t__local
+        : 'a. 'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
+        =
+        fun _write_a buf ~pos -> function
+        | T v1 ->
+          let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+          _write_a buf ~pos v1
+      ;;
+
+      let _ = bin_write_t__local
+
+      let bin_write_t : 'a. 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer =
+        fun _write_a buf ~pos -> function
+        | T v1 ->
+          let pos = Bin_prot.Write.bin_write_int_8bit buf ~pos 0 in
+          _write_a buf ~pos v1
+      ;;
+
+      let _ = bin_write_t
+
+      let bin_writer_t =
+        (fun bin_writer_a ->
+           { size = (fun v -> bin_size_t bin_writer_a.size v)
+           ; write = (fun v -> bin_write_t bin_writer_a.write v)
+           }
+         : _ Bin_prot.Type_class.writer -> _ Bin_prot.Type_class.writer)
+      ;;
+
+      let _ = bin_writer_t
+
+      let __bin_read_t__ : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader =
+        fun _of__a _buf ~pos_ref _vint ->
+        Bin_prot.Common.raise_variant_wrong_type
+          "deriving_inline.ml.Global_fields_with_localize.Tuple_constructor.T1.t"
+          !pos_ref
+      ;;
+
+      let _ = __bin_read_t__
+
+      let bin_read_t : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader =
+        fun _of__a buf ~pos_ref ->
+        match Bin_prot.Read.bin_read_int_8bit buf ~pos_ref with
+        | 0 ->
+          let arg_1 = _of__a buf ~pos_ref in
+          T arg_1
+        | _ ->
+          Bin_prot.Common.raise_read_error
+            (Bin_prot.Common.ReadError.Sum_tag
+               "deriving_inline.ml.Global_fields_with_localize.Tuple_constructor.T1.t")
+            !pos_ref
+      ;;
+
+      let _ = bin_read_t
+
+      let bin_reader_t =
+        (fun bin_reader_a ->
+           { read = (fun buf ~pos_ref -> (bin_read_t bin_reader_a.read) buf ~pos_ref)
+           ; vtag_read =
+               (fun buf ~pos_ref vtag ->
+                 (__bin_read_t__ bin_reader_a.read) buf ~pos_ref vtag)
+           }
+         : _ Bin_prot.Type_class.reader -> _ Bin_prot.Type_class.reader)
+      ;;
+
+      let _ = bin_reader_t
+
+      let bin_t =
+        (fun bin_a ->
+           { writer = bin_writer_t bin_a.writer
+           ; reader = bin_reader_t bin_a.reader
+           ; shape = bin_shape_t bin_a.shape
+           }
+         : _ Bin_prot.Type_class.t -> _ Bin_prot.Type_class.t)
+      ;;
+
+      let _ = bin_t
+
+      [@@@end]
+    end
   end
 end

@@ -138,7 +138,7 @@ let of_type
           [%e traverse t]]
   and traverse typ =
     let loc = { typ.ptyp_loc with loc_ghost = true } in
-    match typ.ptyp_desc with
+    match Ppxlib_jane.Shim.Core_type_desc.of_parsetree typ.ptyp_desc with
     | Ptyp_constr (lid, typs) ->
       let args = List.map typs ~f:traverse in
       (match
@@ -148,8 +148,9 @@ let of_type
        with
        | Some tname -> app_list ~loc (shape_rec_app ~loc ~tname) args
        | None -> curry_app_list ~loc (bin_shape_lid ~loc lid) args)
-    | Ptyp_tuple typs -> shape_tuple ~loc (List.map typs ~f:traverse)
-    | Ptyp_var tvar ->
+    | Ptyp_tuple labeled_typs ->
+      shape_tuple ~loc (List.map labeled_typs ~f:(fun (_, typ) -> traverse typ))
+    | Ptyp_var (tvar, _) ->
       if allow_free_vars
       then
         [%expr Bin_prot.Shape.var [%e loc_string loc ~hide_loc] [%e shape_vid ~loc ~tvar]]
@@ -159,16 +160,7 @@ let of_type
         ~loc
         ~hide_loc
         (List.map rows ~f:(fun row -> traverse_row ~loc ~typ_for_error:typ row))
-    | Ptyp_poly (_, _)
-    | Ptyp_variant (_, _, Some _)
-    | Ptyp_any
-    | Ptyp_arrow _
-    | Ptyp_object _
-    | Ptyp_class _
-    | Ptyp_alias _
-    | Ptyp_package _
-    | Ptyp_extension _ ->
-      expr_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
+    | _ -> expr_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
   in
   traverse
 ;;
@@ -179,8 +171,8 @@ let tvars_of_def (td : type_declaration)
   let tvars, non_tvars =
     List.partition_map td.ptype_params ~f:(fun (typ, _variance) ->
       let loc = typ.ptyp_loc in
-      match typ with
-      | { ptyp_desc = Ptyp_var tvar; _ } -> First tvar
+      match Ppxlib_jane.Shim.Core_type.of_parsetree typ with
+      | { ptyp_desc = Ptyp_var (tvar, _); _ } -> First tvar
       | _ -> Second (`Non_tvar loc))
   in
   match non_tvars with
@@ -350,7 +342,7 @@ end = struct
 end
 
 module Signature : sig
-  val gen : (signature, rec_flag * type_declaration list) Deriving.Generator.t
+  val gen : (signature_item list, rec_flag * type_declaration list) Deriving.Generator.t
 end = struct
   let of_td td : signature_item =
     let td = name_type_params_in_td td in
