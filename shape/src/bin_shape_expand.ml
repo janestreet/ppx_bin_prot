@@ -148,8 +148,9 @@ let of_type
        with
        | Some tname -> app_list ~loc (shape_rec_app ~loc ~tname) args
        | None -> curry_app_list ~loc (bin_shape_lid ~loc lid) args)
-    | Ptyp_tuple typs -> shape_tuple ~loc (List.map typs ~f:traverse)
-    | Ptyp_var tvar ->
+    | Ptyp_tuple labeled_typs ->
+      shape_tuple ~loc (List.map labeled_typs ~f:(fun (_, typ) -> traverse typ))
+    | Ptyp_var (tvar, _) ->
       if allow_free_vars
       then
         [%expr Bin_prot.Shape.var [%e loc_string loc ~hide_loc] [%e shape_vid ~loc ~tvar]]
@@ -170,8 +171,8 @@ let tvars_of_def (td : type_declaration)
   let tvars, non_tvars =
     List.partition_map td.ptype_params ~f:(fun (typ, _variance) ->
       let loc = typ.ptyp_loc in
-      match typ with
-      | { ptyp_desc = Ptyp_var tvar; _ } -> First tvar
+      match Ppxlib_jane.Shim.Core_type.of_parsetree typ with
+      | { ptyp_desc = Ptyp_var (tvar, _); _ } -> First tvar
       | _ -> Second (`Non_tvar loc))
   in
   match non_tvars with
@@ -341,7 +342,7 @@ end = struct
 end
 
 module Signature : sig
-  val gen : (signature, rec_flag * type_declaration list) Deriving.Generator.t
+  val gen : (signature_item list, rec_flag * type_declaration list) Deriving.Generator.t
 end = struct
   let of_td td : signature_item =
     let td = name_type_params_in_td td in

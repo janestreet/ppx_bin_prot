@@ -464,24 +464,20 @@ module Generate_bin_size = struct
   (* Conversion of types *)
   let rec bin_size_type full_type_name _loc ty ~locality =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
-    match Ppxlib_jane.Jane_syntax.Core_type.of_ast ty with
-    | Some (Jtyp_tuple alist, (_ : attributes)) ->
-      bin_size_labeled_tuple full_type_name loc alist ~locality
-    | Some (Jtyp_layout _, _) | None ->
-      (match ty.ptyp_desc with
-       | Ptyp_constr (id, args) ->
-         `Fun (bin_size_appl_fun full_type_name loc id args ~locality)
-       | Ptyp_tuple l -> bin_size_tuple full_type_name loc l ~locality
-       | Ptyp_var parm -> `Fun (evar ~loc (bin_size_arg parm))
-       | Ptyp_arrow _ ->
-         Location.raise_errorf
-           ~loc
-           "bin_size_type: cannot convert functions to the binary protocol"
-       | Ptyp_variant ([], _, _) -> bin_size_nil full_type_name loc
-       | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
-         bin_size_variant full_type_name loc row_fields ~locality
-       | Ptyp_poly (parms, ty) -> bin_size_poly full_type_name loc parms ty ~locality
-       | _ -> Location.raise_errorf ~loc "bin_size_type: unknown type construct")
+    match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
+    | Ptyp_constr (id, args) ->
+      `Fun (bin_size_appl_fun full_type_name loc id args ~locality)
+    | Ptyp_tuple l -> bin_size_tuple full_type_name loc l ~locality
+    | Ptyp_var (parm, _) -> `Fun (evar ~loc (bin_size_arg parm))
+    | Ptyp_arrow _ ->
+      Location.raise_errorf
+        ~loc
+        "bin_size_type: cannot convert functions to the binary protocol"
+    | Ptyp_variant ([], _, _) -> bin_size_nil full_type_name loc
+    | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
+      bin_size_variant full_type_name loc row_fields ~locality
+    | Ptyp_poly (parms, ty) -> bin_size_poly full_type_name loc parms ty ~locality
+    | _ -> Location.raise_errorf ~loc "bin_size_type: unknown type construct"
 
   (* Conversion of polymorphic types *)
   and bin_size_appl_fun full_type_name loc id args ~locality =
@@ -563,24 +559,7 @@ module Generate_bin_size = struct
 
   (* Conversion of tuples *)
   and bin_size_tuple full_type_name loc l ~locality =
-    let cnv_patts patts = ppat_tuple ~loc patts in
-    let get_tp tp = tp in
-    let mk_patt loc v_name _ = pvar ~loc v_name in
-    bin_size_tup_rec
-      full_type_name
-      loc
-      cnv_patts
-      get_tp
-      Locality_modality.of_tuple_field
-      mk_patt
-      l
-      ~locality
-
-  (* Conversion of labeled tuples *)
-  and bin_size_labeled_tuple full_type_name loc l ~locality =
-    let cnv_patts patts =
-      Ppxlib_jane.Jane_syntax.Labeled_tuples.pat_of ~loc (patts, Closed)
-    in
+    let cnv_patts patts = Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc patts Closed in
     let get_tp (_, tp) = tp in
     let mk_patt loc v_name (label, _) = label, pvar ~loc v_name in
     bin_size_tup_rec
@@ -651,7 +630,7 @@ module Generate_bin_size = struct
   (* Polymorphic record fields *)
   and bin_size_poly full_type_name loc parms tp ~locality =
     let bindings =
-      let mk_binding parm =
+      let mk_binding (parm, _) =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
@@ -855,24 +834,20 @@ module Generate_bin_write = struct
   (* Conversion of types *)
   let rec bin_write_type full_type_name _loc ty ~locality =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
-    match Ppxlib_jane.Jane_syntax.Core_type.of_ast ty with
-    | Some (Jtyp_tuple alist, (_ : attributes)) ->
-      bin_write_labeled_tuple full_type_name loc alist ~locality
-    | Some (Jtyp_layout _, _) | None ->
-      (match ty.ptyp_desc with
-       | Ptyp_constr (id, args) ->
-         `Fun (bin_write_appl_fun full_type_name loc id args ~locality)
-       | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~locality
-       | Ptyp_var parm -> `Fun (evar ~loc (bin_write_arg parm))
-       | Ptyp_arrow _ ->
-         Location.raise_errorf
-           ~loc
-           "bin_write_type: cannot convert functions to the binary protocol"
-       | Ptyp_variant ([], _, _) -> bin_write_nil full_type_name loc
-       | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
-         bin_write_variant full_type_name loc row_fields ~locality
-       | Ptyp_poly (parms, ty) -> bin_write_poly full_type_name loc parms ty ~locality
-       | _ -> Location.raise_errorf ~loc "bin_write_type: unknown type construct")
+    match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
+    | Ptyp_constr (id, args) ->
+      `Fun (bin_write_appl_fun full_type_name loc id args ~locality)
+    | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~locality
+    | Ptyp_var (parm, _) -> `Fun (evar ~loc (bin_write_arg parm))
+    | Ptyp_arrow _ ->
+      Location.raise_errorf
+        ~loc
+        "bin_write_type: cannot convert functions to the binary protocol"
+    | Ptyp_variant ([], _, _) -> bin_write_nil full_type_name loc
+    | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
+      bin_write_variant full_type_name loc row_fields ~locality
+    | Ptyp_poly (parms, ty) -> bin_write_poly full_type_name loc parms ty ~locality
+    | _ -> Location.raise_errorf ~loc "bin_write_type: unknown type construct"
 
   (* Conversion of polymorphic types *)
   and bin_write_appl_fun full_type_name loc id args ~locality =
@@ -944,24 +919,7 @@ module Generate_bin_write = struct
 
   (* Conversion of tuples *)
   and bin_write_tuple full_type_name loc l ~locality =
-    let cnv_patts patts = ppat_tuple ~loc patts in
-    let get_tp tp = tp in
-    let mk_patt loc v_name _ = pvar ~loc v_name in
-    bin_write_tup_rec
-      full_type_name
-      loc
-      cnv_patts
-      get_tp
-      Locality_modality.of_tuple_field
-      mk_patt
-      l
-      ~locality
-
-  (* Conversion of labeled tuples *)
-  and bin_write_labeled_tuple full_type_name loc l ~locality =
-    let cnv_patts patts =
-      Ppxlib_jane.Jane_syntax.Labeled_tuples.pat_of ~loc (patts, Closed)
-    in
+    let cnv_patts patts = Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc patts Closed in
     let get_tp (_, tp) = tp in
     let mk_patt loc v_name (label, _) = label, pvar ~loc v_name in
     bin_write_tup_rec
@@ -1038,7 +996,7 @@ module Generate_bin_write = struct
   (* Polymorphic record fields *)
   and bin_write_poly full_type_name loc parms tp ~locality =
     let bindings =
-      let mk_binding parm =
+      let mk_binding (parm, _jkind) =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
@@ -1340,27 +1298,23 @@ module Generate_bin_read = struct
   (* Conversion of types *)
   and bin_read_type_internal full_type_name ~full_type _loc ty =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
-    match Ppxlib_jane.Jane_syntax.Core_type.of_ast ty with
-    | Some (Jtyp_tuple alist, (_ : attributes)) ->
-      bin_read_labeled_tuple full_type_name loc alist
-    | Some (Jtyp_layout _, _) | None ->
-      (match ty.ptyp_desc with
-       | Ptyp_constr (id, args) ->
-         let args_expr =
-           List.map args ~f:(fun tp ->
-             get_closed_expr _loc (bin_read_type full_type_name _loc tp))
-         in
-         let expr = bin_read_path_fun id.loc id args_expr in
-         `Closed expr
-       | Ptyp_tuple tp -> bin_read_tuple full_type_name loc tp
-       | Ptyp_var parm -> `Closed (evar ~loc (conv_name parm))
-       | Ptyp_arrow _ ->
-         Location.raise_errorf ~loc "bin_read_arrow: cannot convert functions"
-       | Ptyp_variant ([], _, _) -> bin_read_nil_variant full_type_name loc
-       | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
-         bin_read_variant full_type_name loc ?full_type row_fields
-       | Ptyp_poly (parms, poly_tp) -> bin_read_poly full_type_name loc parms poly_tp
-       | _ -> Location.raise_errorf ~loc "bin_read_type: unknown type construct")
+    match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
+    | Ptyp_constr (id, args) ->
+      let args_expr =
+        List.map args ~f:(fun tp ->
+          get_closed_expr _loc (bin_read_type full_type_name _loc tp))
+      in
+      let expr = bin_read_path_fun id.loc id args_expr in
+      `Closed expr
+    | Ptyp_tuple tps -> bin_read_tuple full_type_name loc tps
+    | Ptyp_var (parm, _) -> `Closed (evar ~loc (conv_name parm))
+    | Ptyp_arrow _ ->
+      Location.raise_errorf ~loc "bin_read_arrow: cannot convert functions"
+    | Ptyp_variant ([], _, _) -> bin_read_nil_variant full_type_name loc
+    | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
+      bin_read_variant full_type_name loc ?full_type row_fields
+    | Ptyp_poly (parms, poly_tp) -> bin_read_poly full_type_name loc parms poly_tp
+    | _ -> Location.raise_errorf ~loc "bin_read_type: unknown type construct"
 
   and bin_read_type full_type_name loc ty =
     bin_read_type_internal full_type_name ~full_type:None loc ty
@@ -1369,19 +1323,7 @@ module Generate_bin_read = struct
     bin_read_type_internal full_type_name ~full_type:(Some full_type) loc ty
 
   (* Conversion of tuples *)
-  and bin_read_tuple full_type_name loc tps =
-    let bindings, exprs =
-      let map i tp =
-        let v_name = "v" ^ Int.to_string (i + 1) in
-        let expr = get_open_expr loc (bin_read_type full_type_name loc tp) in
-        value_binding ~loc ~pat:(pvar ~loc v_name) ~expr, evar ~loc v_name
-      in
-      List.mapi tps ~f:map |> List.unzip
-    in
-    `Open (let_ins loc bindings (pexp_tuple ~loc exprs))
-
-  (* Conversion of labeled tuples *)
-  and bin_read_labeled_tuple full_type_name loc alist =
+  and bin_read_tuple full_type_name loc alist =
     let bindings, exprs =
       let map i (label, tp) =
         let v_name = "v" ^ Int.to_string (i + 1) in
@@ -1390,8 +1332,7 @@ module Generate_bin_read = struct
       in
       List.mapi alist ~f:map |> List.unzip
     in
-    `Open
-      (let_ins loc bindings (Ppxlib_jane.Jane_syntax.Labeled_tuples.expr_of ~loc exprs))
+    `Open (let_ins loc bindings (Ppxlib_jane.Ast_builder.Default.pexp_tuple ~loc exprs))
 
   (* Variant conversions *)
 
@@ -1483,7 +1424,7 @@ module Generate_bin_read = struct
   (* Polymorphic record field conversion *)
   and bin_read_poly full_type_name loc parms tp =
     let bindings =
-      let mk_binding parm =
+      let mk_binding (parm, _) =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
