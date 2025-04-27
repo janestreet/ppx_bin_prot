@@ -51,14 +51,20 @@ module Locality_modality = struct
   ;;
 end
 
+let value_binding ~loc ~pat ~expr ~portable =
+  Ppxlib_jane.Ast_builder.Default.value_binding
+    ~loc
+    ~pat
+    ~expr
+    ~modes:(if portable then [ { txt = Mode "portable"; loc } ] else [])
+;;
+
 (* type_name is for types like Bin_prot.Size.sizer *)
 let type_name string ~locality =
   match locality with
-  | Some Local -> string ^ "_local"
+  | Some Local -> string ^ "__local"
   | None -> string
 ;;
-
-let signature_name = type_name
 
 let value_name ~prefix ~locality string =
   let suffix =
@@ -108,18 +114,21 @@ end
 
 module Sig = struct
   let mk_sig_generator combinators ~with_localize =
-    let mk_sig ~ctxt:_ (_rf, tds) localize =
+    let mk_sig ~ctxt:_ (_rf, tds) ~localize ~portable =
       List.concat_map tds ~f:(fun td ->
         let td = name_type_params_in_td td in
-        List.concat_map combinators ~f:(fun mk -> Staged.unstage mk td ~localize))
+        List.concat_map combinators ~f:(fun mk ->
+          Staged.unstage mk td ~localize ~portable))
     in
-    if with_localize
-    then (
-      let flags = Deriving.Args.(empty +> flag "localize") in
-      Deriving.Generator.V2.make flags mk_sig)
-    else (
-      let flags = Deriving.Args.empty in
-      Deriving.Generator.V2.make flags (fun ~ctxt x -> mk_sig ~ctxt x false))
+    match with_localize with
+    | None ->
+      let flags = Deriving.Args.(empty +> flag "localize" +> flag "portable") in
+      Deriving.Generator.V2.make flags (fun ~ctxt tds localize portable ->
+        mk_sig ~ctxt tds ~localize ~portable)
+    | Some localize ->
+      let flags = Deriving.Args.(empty +> flag "portable") in
+      Deriving.Generator.V2.make flags (fun ~ctxt x portable ->
+        mk_sig ~ctxt x ~localize ~portable)
   ;;
 
   let mk_typ ~hide_params { Typ.arg_constr; result_constr } td =
@@ -140,21 +149,28 @@ module Sig = struct
   ;;
 
   let mk ~can_generate_local name_format type_constr =
-    Staged.stage (fun td ~localize:localize_requested ->
+    Staged.stage (fun td ~localize:localize_requested ~portable ->
       let generate ~locality =
         let loc = td.ptype_loc in
         let name = Loc.map ~f:(name_format ~locality) td.ptype_name in
         let typ = mk_typ ~hide_params:false (type_constr ~locality) td in
-        psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[])
+        psig_value
+          ~loc
+          (Ppxlib_jane.Ast_builder.Default.value_description
+             ~loc
+             ~name
+             ~type_:typ
+             ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
+             ~prim:[])
       in
       if can_generate_local && localize_requested
       then [ generate ~locality:None; generate ~locality:(Some Local) ]
       else [ generate ~locality:None ])
   ;;
 
-  let bin_write =
+  let mk_bin_write ~with_localize =
     mk_sig_generator
-      ~with_localize:true
+      ~with_localize
       [ mk bin_size_name (Typ.create "Bin_prot.Size.sizer") ~can_generate_local:true
       ; mk bin_write_name (Typ.create "Bin_prot.Write.writer") ~can_generate_local:true
       ; mk
@@ -164,9 +180,12 @@ module Sig = struct
       ]
   ;;
 
+  let bin_write = mk_bin_write ~with_localize:None
+  let bin_write_local = mk_bin_write ~with_localize:(Some true)
+
   let bin_read =
     mk_sig_generator
-      ~with_localize:false
+      ~with_localize:(Some false)
       [ mk bin_read_name (Typ.create "Bin_prot.Read.reader") ~can_generate_local:false
       ; mk
           bin_vtag_read_name
@@ -181,38 +200,56 @@ module Sig = struct
 
   let bin_type_class =
     mk_sig_generator
-      ~with_localize:false
+      ~with_localize:(Some false)
       [ mk bin_name (Typ.create "Bin_prot.Type_class.t") ~can_generate_local:false ]
   ;;
 
-  let named =
-    let mk_named_sig ~ctxt (rf, tds) localize =
-      let loc = Expansion_context.Deriver.derived_item_loc ctxt in
-      match
-        mk_named_sig
+  let mk_named_sig ~ctxt (rf, tds) ~localize ~portable =
+    let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+    match
+      mk_named_sig ~loc ~sg_name:"Bin_prot.Binable.S" ~handle_polymorphic_variant:true tds
+    with
+    | Some incl ->
+      let incl =
+        match localize with
+        | false -> incl
+        | true -> Ppxlib_jane.localize_include_sig incl
+      in
+      [ Ppxlib_jane.Ast_builder.Default.psig_include
           ~loc
-          ~sg_name:
-            (signature_name
-               "Bin_prot.Binable.S"
-               ~locality:(if localize then Some Local else None))
-          ~handle_polymorphic_variant:true
-          tds
-      with
-      | Some incl -> [ psig_include ~loc incl ]
-      | None ->
-        List.concat_map
-          [ Bin_shape_expand.sig_gen; bin_write; bin_read; bin_type_class ]
-          ~f:(fun gen ->
-            Deriving.Generator.apply
-              ~name:"unused"
-              gen
-              ~ctxt
-              (rf, tds)
-              (if localize then [ "localize", [%expr localize] ] else []))
-    in
-    let flags = Deriving.Args.(empty +> flag "localize") in
-    Deriving.Generator.V2.make flags mk_named_sig
+          ~modalities:
+            (if portable then [ Loc.make ~loc (Ppxlib_jane.Modality "portable") ] else [])
+          incl
+      ]
+    | None ->
+      List.concat_map
+        [ Bin_shape_expand.sig_gen; bin_write; bin_read; bin_type_class ]
+        ~f:(fun gen ->
+          Deriving.Generator.apply
+            ~name:"unused"
+            gen
+            ~ctxt
+            (rf, tds)
+            (List.concat
+               [ (if localize then [ "localize", [%expr localize] ] else [])
+               ; (if portable then [ "portable", [%expr portable] ] else [])
+               ]))
   ;;
+
+  let mk_named ~with_localize =
+    match with_localize with
+    | None ->
+      let flags = Deriving.Args.(empty +> flag "localize" +> flag "portable") in
+      Deriving.Generator.V2.make flags (fun ~ctxt tds localize portable ->
+        mk_named_sig ~ctxt tds ~localize ~portable)
+    | Some localize ->
+      let flags = Deriving.Args.(empty +> flag "portable") in
+      Deriving.Generator.V2.make flags (fun ~ctxt x portable ->
+        mk_named_sig ~ctxt x ~localize ~portable)
+  ;;
+
+  let named = mk_named ~with_localize:None
+  let named_local = mk_named ~with_localize:(Some true)
 end
 
 (* +-----------------------------------------------------------------+
@@ -304,9 +341,9 @@ end = struct
 end
 
 let generate_poly_type ~loc constructor td =
-  ptyp_poly
+  Ppxlib_jane.Ast_builder.Default.ptyp_poly
     ~loc
-    (List.map td.ptype_params ~f:get_type_param_name)
+    (List.map td.ptype_params ~f:Ppxlib_jane.get_type_param_name_and_jkind)
     (Sig.mk_typ ~hide_params:false constructor td)
 ;;
 
@@ -318,6 +355,7 @@ let make_value
   ~make_value_name
   ~make_arg_name
   ~body
+  ~portable
   td
   =
   let vars = vars_of_params td ~f:make_arg_name in
@@ -344,7 +382,7 @@ let make_value
     then pat, pexp_constraint ~loc expr constraint_
     else ppat_constraint ~loc pat constraint_, expr
   in
-  value_binding ~loc ~pat ~expr
+  value_binding ~loc ~pat ~expr ~portable
 ;;
 
 (* Determines whether or not the generated code associated with
@@ -373,8 +411,9 @@ let would_rather_omit_type_signatures =
     end
   in
   fun td ->
-    match td.ptype_kind with
-    | Ptype_variant _ | Ptype_record _ | Ptype_open -> false
+    match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
+    | Ptype_variant _ | Ptype_record _ | Ptype_record_unboxed_product _ | Ptype_open ->
+      false
     | Ptype_abstract ->
       (match td.ptype_manifest with
        | None -> false
@@ -392,7 +431,7 @@ let should_omit_type_params ~f_sharp_compatible tds =
   f_sharp_compatible || List.for_all ~f:would_rather_omit_type_signatures tds
 ;;
 
-let aliases_of_tds tds ~function_name ~function_type_name =
+let aliases_of_tds tds ~function_name ~function_type_name ~portable =
   (* So that ~localize doesn't double the size of the generated code, we define the non
      @local function as an alias to the @local function. This only works for ground
      types, as [(buf -> pos:pos -> 'a -> pos) -> buf -> pos:pos -> 'a list -> pos]
@@ -415,13 +454,14 @@ let aliases_of_tds tds ~function_name ~function_type_name =
                 [ ptyp_any ~loc ])
          in
          let pat = pvar ~loc (function_name ~locality:None td.ptype_name.txt) in
-         value_binding ~loc ~pat ~expr))
+         value_binding ~loc ~pat ~expr ~portable))
   else None
 ;;
 
 let alias_local_binding_if_possible
   ~loc
   ~localize
+  ~portable
   ~function_name
   ~function_type_name
   rec_flag
@@ -435,6 +475,7 @@ let alias_local_binding_if_possible
     ; (match
          aliases_of_tds
            ~function_name
+           ~portable
            ~function_type_name:(type_name function_type_name)
            tds
        with
@@ -634,6 +675,7 @@ module Generate_bin_size = struct
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
           ~loc
+          ~portable:false
           ~pat:(pvar ~loc (bin_size_arg parm.txt))
           ~expr:
             [%expr
@@ -758,10 +800,12 @@ module Generate_bin_size = struct
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let res =
-      match td.ptype_kind with
+      match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
       | Ptype_variant [] -> bin_size_nil full_type_name loc
       | Ptype_variant (_ :: _ as alts) -> bin_size_sum full_type_name loc alts ~locality
       | Ptype_record flds -> bin_size_record full_type_name loc flds ~locality
+      | Ptype_record_unboxed_product _ ->
+        Location.raise_errorf ~loc "bin_size_td: unboxed record types not yet supported"
       | Ptype_open ->
         Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
       | Ptype_abstract ->
@@ -773,10 +817,11 @@ module Generate_bin_size = struct
   ;;
 
   (* Generate code from type definitions *)
-  let bin_size_td ~should_omit_type_params ~loc ~path td ~locality =
+  let bin_size_td ~should_omit_type_params ~loc ~path td ~locality ~portable =
     let body = sizer_body_of_td ~path td ~locality in
     make_value
       ~locality
+      ~portable
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Size.sizer")
       ~hide_params:should_omit_type_params
@@ -786,15 +831,18 @@ module Generate_bin_size = struct
       td
   ;;
 
-  let bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds) localize =
+  let bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~localize ~portable =
     let tds = List.map tds ~f:name_type_params_in_td in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
     let bindings ~locality =
-      List.map tds ~f:(bin_size_td ~should_omit_type_params ~loc ~path ~locality)
+      List.map
+        tds
+        ~f:(bin_size_td ~should_omit_type_params ~loc ~path ~locality ~portable)
     in
     alias_local_binding_if_possible
       ~loc
       ~localize
+      ~portable
       ~function_name:bin_size_name
       ~function_type_name:"Bin_prot.Size.sizer"
       rec_flag
@@ -832,12 +880,12 @@ module Generate_bin_write = struct
   ;;
 
   (* Conversion of types *)
-  let rec bin_write_type full_type_name _loc ty ~locality =
+  let rec bin_write_type full_type_name _loc ty ~locality ~portable =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
     match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
     | Ptyp_constr (id, args) ->
-      `Fun (bin_write_appl_fun full_type_name loc id args ~locality)
-    | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~locality
+      `Fun (bin_write_appl_fun full_type_name loc id args ~locality ~portable)
+    | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~locality ~portable
     | Ptyp_var (parm, _) -> `Fun (evar ~loc (bin_write_arg parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf
@@ -845,16 +893,17 @@ module Generate_bin_write = struct
         "bin_write_type: cannot convert functions to the binary protocol"
     | Ptyp_variant ([], _, _) -> bin_write_nil full_type_name loc
     | Ptyp_variant ((_ :: _ as row_fields), _, _) ->
-      bin_write_variant full_type_name loc row_fields ~locality
-    | Ptyp_poly (parms, ty) -> bin_write_poly full_type_name loc parms ty ~locality
+      bin_write_variant full_type_name loc row_fields ~locality ~portable
+    | Ptyp_poly (parms, ty) ->
+      bin_write_poly full_type_name loc parms ty ~locality ~portable
     | _ -> Location.raise_errorf ~loc "bin_write_type: unknown type construct"
 
   (* Conversion of polymorphic types *)
-  and bin_write_appl_fun full_type_name loc id args ~locality =
+  and bin_write_appl_fun full_type_name loc id args ~locality ~portable =
     let loc = { loc with loc_ghost = true } in
     let writers =
       List.map args ~f:(fun ty ->
-        match bin_write_type full_type_name ty.ptyp_loc ty ~locality with
+        match bin_write_type full_type_name ty.ptyp_loc ty ~locality ~portable with
         | `Fun e -> e
         | `Match cases ->
           [%expr fun buf ~pos -> [%e pexp_function ~loc:ty.ptyp_loc cases]])
@@ -871,9 +920,10 @@ module Generate_bin_write = struct
     -> (Location.t -> string -> 'a -> 'b)
     -> 'a list
     -> locality:Locality_mode.t option
+    -> portable:bool
     -> 'b list * expression
     =
-    fun full_type_name loc get_tp get_locality_modality mk_patt tp ~locality ->
+    fun full_type_name loc get_tp get_locality_modality mk_patt tp ~locality ~portable ->
     let rec loop i = function
       | el :: rest ->
         let tp = get_tp el in
@@ -881,7 +931,7 @@ module Generate_bin_write = struct
         let v_name = "v" ^ Int.to_string i in
         let v_expr =
           let e_name = evar ~loc v_name in
-          match bin_write_type full_type_name loc tp ~locality with
+          match bin_write_type full_type_name loc tp ~locality ~portable with
           | `Fun fun_expr -> mk_buf_pos_call ~loc fun_expr e_name
           | `Match cases -> pexp_match ~loc e_name cases
         in
@@ -909,16 +959,33 @@ module Generate_bin_write = struct
     -> (Location.t -> string -> 'a -> 'b)
     -> 'a list
     -> locality:Locality_mode.t option
+    -> portable:bool
     -> _
     =
-    fun full_type_name loc cnv_patts get_tp get_locality_modality mk_patt tp ~locality ->
+    fun full_type_name
+      loc
+      cnv_patts
+      get_tp
+      get_locality_modality
+      mk_patt
+      tp
+      ~locality
+      ~portable ->
     let patts, expr =
-      bin_write_args full_type_name loc get_tp get_locality_modality mk_patt tp ~locality
+      bin_write_args
+        full_type_name
+        loc
+        get_tp
+        get_locality_modality
+        mk_patt
+        tp
+        ~locality
+        ~portable
     in
     `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
 
   (* Conversion of tuples *)
-  and bin_write_tuple full_type_name loc l ~locality =
+  and bin_write_tuple full_type_name loc l ~locality ~portable =
     let cnv_patts patts = Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc patts Closed in
     let get_tp (_, tp) = tp in
     let mk_patt loc v_name (label, _) = label, pvar ~loc v_name in
@@ -931,9 +998,10 @@ module Generate_bin_write = struct
       mk_patt
       l
       ~locality
+      ~portable
 
   (* Conversion of records *)
-  and bin_write_record full_type_name loc tp ~locality =
+  and bin_write_record full_type_name loc tp ~locality ~portable =
     let cnv_patts lbls = ppat_record ~loc lbls Closed in
     let get_tp ld = ld.pld_type in
     let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
@@ -946,9 +1014,10 @@ module Generate_bin_write = struct
       mk_patt
       tp
       ~locality
+      ~portable
 
   (* Conversion of variant types *)
-  and bin_write_variant full_type_name loc row_fields ~locality =
+  and bin_write_variant full_type_name loc row_fields ~locality ~portable =
     let matchings =
       List.map row_fields ~f:(fun row_field ->
         match row_field.prf_desc with
@@ -964,7 +1033,7 @@ module Generate_bin_write = struct
                   [%e eint ~loc (Ocaml_common.Btype.hash_variant cnstr)]]
         | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
           let write_args =
-            match bin_write_type full_type_name tp.ptyp_loc tp ~locality with
+            match bin_write_type full_type_name tp.ptyp_loc tp ~locality ~portable with
             | `Fun fun_expr -> mk_buf_pos_call fun_expr ~loc [%expr args]
             | `Match cases -> pexp_match ~loc [%expr args] cases
           in
@@ -984,7 +1053,9 @@ module Generate_bin_write = struct
           let loc = { ty.ptyp_loc with loc_ghost = true } in
           (match ty.ptyp_desc with
            | Ptyp_constr (id, args) ->
-             let call = bin_write_appl_fun full_type_name loc id args ~locality in
+             let call =
+               bin_write_appl_fun full_type_name loc id args ~locality ~portable
+             in
              case
                ~lhs:(ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc "v"))
                ~guard:None
@@ -994,11 +1065,12 @@ module Generate_bin_write = struct
     `Match matchings
 
   (* Polymorphic record fields *)
-  and bin_write_poly full_type_name loc parms tp ~locality =
+  and bin_write_poly full_type_name loc parms tp ~locality ~portable =
     let bindings =
       let mk_binding (parm, _jkind) =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
+          ~portable
           ~loc
           ~pat:(pvar ~loc (bin_write_arg parm.txt))
           ~expr:
@@ -1008,7 +1080,7 @@ module Generate_bin_write = struct
       in
       List.map parms ~f:mk_binding
     in
-    match bin_write_type full_type_name loc tp ~locality with
+    match bin_write_type full_type_name loc tp ~locality ~portable with
     | `Fun fun_expr -> `Fun (pexp_let ~loc Nonrecursive bindings fun_expr)
     | `Match matchings ->
       `Match
@@ -1026,7 +1098,7 @@ module Generate_bin_write = struct
 
   (* Conversion of sum types *)
 
-  let bin_write_sum full_type_name loc alts ~locality =
+  let bin_write_sum full_type_name loc alts ~locality ~portable =
     let n_alts = List.length alts in
     let write_tag =
       if n_alts <= 256
@@ -1066,6 +1138,7 @@ module Generate_bin_write = struct
               mk_patt
               args
               ~locality
+              ~portable
           in
           let args =
             match patts with
@@ -1092,6 +1165,7 @@ module Generate_bin_write = struct
               mk_patt
               fields
               ~locality
+              ~portable
           in
           case
             ~lhs:(pconstruct cd (Some (cnv_patts patts)))
@@ -1118,20 +1192,23 @@ module Generate_bin_write = struct
     [%expr { size = [%e size]; write = [%e write] }]
   ;;
 
-  let writer_body_of_td ~path td ~locality =
+  let writer_body_of_td ~path td ~locality ~portable =
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let res =
-      match td.ptype_kind with
+      match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
       | Ptype_variant [] -> bin_write_nil full_type_name loc
-      | Ptype_variant (_ :: _ as alts) -> bin_write_sum full_type_name loc alts ~locality
-      | Ptype_record flds -> bin_write_record full_type_name loc flds ~locality
+      | Ptype_variant (_ :: _ as alts) ->
+        bin_write_sum full_type_name loc alts ~locality ~portable
+      | Ptype_record flds -> bin_write_record full_type_name loc flds ~locality ~portable
+      | Ptype_record_unboxed_product _ ->
+        Location.raise_errorf ~loc "bin_size_td: unboxed record types not yet supported"
       | Ptype_open ->
         Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
       | Ptype_abstract ->
         (match td.ptype_manifest with
          | None -> bin_write_nil full_type_name loc
-         | Some ty -> bin_write_type full_type_name loc ty ~locality)
+         | Some ty -> bin_write_type full_type_name loc ty ~locality ~portable)
     in
     make_fun ~loc ~don't_expand:(td_is_nil td) res
   ;;
@@ -1143,10 +1220,11 @@ module Generate_bin_write = struct
   ;;
 
   (* Generate code from type definitions *)
-  let bin_write_td ~should_omit_type_params ~loc ~path ~locality td =
-    let body = writer_body_of_td ~path ~locality td in
+  let bin_write_td ~should_omit_type_params ~loc ~path ~locality ~portable td =
+    let body = writer_body_of_td ~path ~locality ~portable td in
     make_value
       ~locality
+      ~portable
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Write.writer")
       ~hide_params:should_omit_type_params
@@ -1156,7 +1234,7 @@ module Generate_bin_write = struct
       td
   ;;
 
-  let bin_writer_td ~loc td ~locality =
+  let bin_writer_td ~loc td ~locality ~portable =
     let body =
       let vars = vars_of_params td ~f:bin_writer_arg in
       writer_type_class_record
@@ -1174,6 +1252,7 @@ module Generate_bin_write = struct
     in
     make_value
       ~locality
+      ~portable
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Type_class.writer")
       ~hide_params:true
@@ -1183,16 +1262,19 @@ module Generate_bin_write = struct
       td
   ;;
 
-  let bin_write ~f_sharp_compatible ~loc ~path (rec_flag, tds) localize =
+  let bin_write ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~localize ~portable =
     let tds = List.map tds ~f:name_type_params_in_td in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
     let write_bindings =
       let write_bindings ~locality =
-        List.map tds ~f:(bin_write_td ~should_omit_type_params ~loc ~path ~locality)
+        List.map
+          tds
+          ~f:(bin_write_td ~should_omit_type_params ~loc ~path ~locality ~portable)
       in
       alias_local_binding_if_possible
         ~loc
         ~localize
+        ~portable
         ~function_name:bin_write_name
         ~function_type_name:"Bin_prot.Write.writer"
         rec_flag
@@ -1200,27 +1282,47 @@ module Generate_bin_write = struct
         tds
     in
     let writer_bindings =
-      let writer_bindings ~locality = List.map tds ~f:(bin_writer_td ~loc ~locality) in
+      let writer_bindings ~locality =
+        List.map tds ~f:(bin_writer_td ~loc ~locality ~portable)
+      in
       [ writer_bindings ~locality:None ]
     in
     List.concat
-      [ Generate_bin_size.bin_size ~f_sharp_compatible ~loc ~path (rec_flag, tds) localize
+      [ Generate_bin_size.bin_size
+          ~f_sharp_compatible
+          ~loc
+          ~path
+          (rec_flag, tds)
+          ~localize
+          ~portable
       ; write_bindings
       ; List.map writer_bindings ~f:(pstr_value ~loc Nonrecursive)
       ]
   ;;
 
+  let bin_write_local ~loc ~path tds ~portable =
+    bin_write ~f_sharp_compatible:false ~loc ~path tds ~localize:true ~portable
+  ;;
+
   let gen =
-    let flags = Deriving.Args.(empty +> flag "localize") in
-    Deriving.Generator.make flags (bin_write ~f_sharp_compatible:false)
+    let flags = Deriving.Args.(empty +> flag "localize" +> flag "portable") in
+    Deriving.Generator.make flags (fun ~loc ~path tds localize portable ->
+      bin_write ~f_sharp_compatible:false ~loc ~path tds ~localize ~portable)
+  ;;
+
+  let gen_local =
+    let flags = Deriving.Args.(empty +> flag "portable") in
+    Deriving.Generator.make flags (fun ~loc ~path tds portable ->
+      bin_write_local ~loc ~path tds ~portable)
   ;;
 
   let function_extension ~loc ~path:_ ty ~locality =
-    bin_write_type Full_type_name.absent loc ty ~locality
+    bin_write_type Full_type_name.absent loc ty ~locality ~portable:false
     |> make_fun ~loc:{ loc with loc_ghost = true }
   ;;
 
   let type_class_extension ~loc ~path:_ ty =
+    let portable = false in
     let locality = None in
     let loc = { loc with loc_ghost = true } in
     let full_type_name = Full_type_name.absent in
@@ -1228,7 +1330,9 @@ module Generate_bin_write = struct
       Generate_bin_size.bin_size_type full_type_name loc ty ~locality
       |> Generate_bin_size.make_fun ~loc
     in
-    let write = bin_write_type full_type_name loc ty ~locality |> make_fun ~loc in
+    let write =
+      bin_write_type full_type_name loc ty ~locality ~portable |> make_fun ~loc
+    in
     [%expr
       ([%e writer_type_class_record ~loc ~size ~write] : _ Bin_prot.Type_class.writer)]
   ;;
@@ -1284,7 +1388,8 @@ module Generate_bin_read = struct
       let arg_map ai tp =
         let f = get_open_expr loc (bin_read_type full_type_name loc tp) in
         let arg_name = "arg_" ^ Int.to_string (ai + 1) in
-        evar ~loc arg_name, value_binding ~loc ~pat:(pvar ~loc arg_name) ~expr:f
+        ( evar ~loc arg_name
+        , value_binding ~loc ~portable:false ~pat:(pvar ~loc arg_name) ~expr:f )
       in
       List.mapi arg_tp ~f:arg_map |> List.unzip
     in
@@ -1328,7 +1433,8 @@ module Generate_bin_read = struct
       let map i (label, tp) =
         let v_name = "v" ^ Int.to_string (i + 1) in
         let expr = get_open_expr loc (bin_read_type full_type_name loc tp) in
-        value_binding ~loc ~pat:(pvar ~loc v_name) ~expr, (label, evar ~loc v_name)
+        ( value_binding ~loc ~portable:false ~pat:(pvar ~loc v_name) ~expr
+        , (label, evar ~loc v_name) )
       in
       List.mapi alist ~f:map |> List.unzip
     in
@@ -1427,6 +1533,7 @@ module Generate_bin_read = struct
       let mk_binding (parm, _) =
         let full_type_name = Full_type_name.get_exn ~loc full_type_name in
         value_binding
+          ~portable:false
           ~loc
           ~pat:(pvar ~loc (conv_name parm.txt))
           ~expr:
@@ -1450,7 +1557,11 @@ module Generate_bin_read = struct
         let loc = field.pld_loc in
         let v_name = "v_" ^ field.pld_name.txt in
         let f = get_open_expr loc (bin_read_type full_type_name loc field.pld_type) in
-        ( value_binding ~loc ~pat:(pvar ~loc:field.pld_name.loc v_name) ~expr:f
+        ( value_binding
+            ~loc
+            ~pat:(pvar ~loc:field.pld_name.loc v_name)
+            ~expr:f
+            ~portable:false
         , (Located.map lident field.pld_name, evar ~loc:field.pld_name.loc v_name) )
       in
       List.map fields ~f:map |> List.unzip
@@ -1534,10 +1645,12 @@ module Generate_bin_read = struct
 
   let reader_body_of_td td full_type_name =
     let loc = td.ptype_loc in
-    match td.ptype_kind with
+    match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
     | Ptype_variant [] -> bin_read_nil full_type_name loc
     | Ptype_variant (_ :: _ as cds) -> bin_read_sum full_type_name loc cds
     | Ptype_record lds -> bin_read_record full_type_name loc lds
+    | Ptype_record_unboxed_product _ ->
+      Location.raise_errorf ~loc "bin_size_td: unboxed record types not yet supported"
     | Ptype_open -> Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
     | Ptype_abstract ->
       (match td.ptype_manifest with
@@ -1655,6 +1768,7 @@ module Generate_bin_read = struct
     ~(td_class : Td_class.t)
     ~args
     ~oc_body
+    ~portable
     =
     let read_binding =
       let body =
@@ -1675,6 +1789,7 @@ module Generate_bin_read = struct
       in
       value_binding
         ~loc
+        ~portable
         ~pat:pat_with_type
         ~expr:(eabstract ~loc (patts_of_vars args) body)
     in
@@ -1687,6 +1802,7 @@ module Generate_bin_read = struct
       in
       value_binding
         ~loc
+        ~portable
         ~pat:pat_with_type
         ~expr:
           (eabstract
@@ -1701,7 +1817,7 @@ module Generate_bin_read = struct
     [%expr { read = [%e read]; vtag_read = [%e vtag_read] }]
   ;;
 
-  let bin_read_td ~should_omit_type_params ~loc:_ ~path td =
+  let bin_read_td ~should_omit_type_params ~loc:_ ~path td ~portable =
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let oc_body = reader_body_of_td td full_type_name in
@@ -1730,6 +1846,7 @@ module Generate_bin_read = struct
       let args = vars_of_params td ~f:conv_name in
       read_and_vtag_read_bindings
         ~loc
+        ~portable
         ~read_name
         ~read_binding_type
         ~vtag_read_name
@@ -1752,6 +1869,7 @@ module Generate_bin_read = struct
       let body = reader_type_class_record ~loc ~read ~vtag_read in
       make_value
         ~locality
+        ~portable
         ~loc
         ~type_constr:(Typ.create "Bin_prot.Type_class.reader")
         ~hide_params:true
@@ -1760,40 +1878,38 @@ module Generate_bin_read = struct
         ~body
         td
     in
-    vtag_read_binding, (read_binding, reader_binding)
+    vtag_read_binding, read_binding, reader_binding
   ;;
 
   (* Generate code from type definitions *)
-  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) =
+  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~portable =
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
-    (match rec_flag, tds with
-     | Nonrecursive, _ :: _ :: _ ->
-       (* there can be captures in the generated code if we allow this *)
-       Location.raise_errorf
-         ~loc
-         "bin_prot doesn't support multiple nonrecursive definitions."
-     | _ -> ());
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
-    let vtag_read_bindings, read_and_reader_bindings =
-      List.map tds ~f:(bin_read_td ~should_omit_type_params ~loc ~path) |> List.unzip
+    let vtag_read_bindings, read_bindings, reader_bindings =
+      List.map tds ~f:(bin_read_td ~should_omit_type_params ~loc ~path ~portable)
+      |> List.unzip3
     in
-    let read_bindings, reader_bindings = List.unzip read_and_reader_bindings in
     let defs =
       match rec_flag with
       | Recursive -> [ pstr_value ~loc Recursive (vtag_read_bindings @ read_bindings) ]
       | Nonrecursive ->
-        let cnv binding = pstr_value ~loc Nonrecursive [ binding ] in
-        List.map vtag_read_bindings ~f:cnv @ List.map read_bindings ~f:cnv
+        [ pstr_value ~loc Nonrecursive vtag_read_bindings
+        ; pstr_value ~loc Nonrecursive read_bindings
+        ]
     in
     defs @ [ pstr_value ~loc Nonrecursive reader_bindings ]
   ;;
 
   let gen =
-    Deriving.Generator.make Deriving.Args.empty (bin_read ~f_sharp_compatible:false)
+    Deriving.Generator.make
+      Deriving.Args.(empty +> flag "portable")
+      (fun ~loc ~path tds portable ->
+        bin_read ~f_sharp_compatible:false ~loc ~path tds ~portable)
   ;;
 
   let function_extension ~loc ~path:_ ty =
+    let portable = false in
     let loc = { loc with loc_ghost = true } in
     let full_type_name = Full_type_name.absent in
     let read_name = "read" in
@@ -1808,6 +1924,7 @@ module Generate_bin_read = struct
       let oc_body = bin_read_type_toplevel full_type_name loc ty ~full_type:ty in
       read_and_vtag_read_bindings
         ~loc
+        ~portable
         ~read_name
         ~read_binding_type:None
         ~vtag_read_name
@@ -1821,6 +1938,7 @@ module Generate_bin_read = struct
   ;;
 
   let type_class_extension ~loc ~path:_ ty =
+    let portable = false in
     let loc = { loc with loc_ghost = true } in
     let full_type_name = Full_type_name.absent in
     let read_name = "read" in
@@ -1830,6 +1948,7 @@ module Generate_bin_read = struct
       read_and_vtag_read_bindings
         ~loc
         ~read_name
+        ~portable
         ~read_binding_type:None
         ~vtag_read_name
         ~vtag_read_binding_type:None
@@ -1864,7 +1983,7 @@ module Generate_tp_class = struct
     [%expr { writer = [%e writer]; reader = [%e reader]; shape = [%e shape] }]
   ;;
 
-  let bin_tp_class_td td =
+  let bin_tp_class_td td ~portable =
     let loc = td.ptype_loc in
     let body =
       let vars = vars_of_params ~f:bin_arg td in
@@ -1890,6 +2009,7 @@ module Generate_tp_class = struct
     in
     make_value
       ~locality
+      ~portable
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Type_class.t")
       ~hide_params:true
@@ -1900,14 +2020,18 @@ module Generate_tp_class = struct
   ;;
 
   (* Generate code from type definitions *)
-  let bin_tp_class ~loc ~path:_ (_rec_flag, tds) =
+  let bin_tp_class ~loc ~path:_ (_rec_flag, tds) ~portable =
     let tds = List.map tds ~f:name_type_params_in_td in
-    let bindings = List.map tds ~f:bin_tp_class_td in
+    let bindings = List.map tds ~f:(bin_tp_class_td ~portable) in
     [ pstr_value ~loc Nonrecursive bindings ]
   ;;
 
   (* Add code generator to the set of known generators *)
-  let gen = Deriving.Generator.make Deriving.Args.empty bin_tp_class
+  let gen =
+    Deriving.Generator.make
+      Deriving.Args.(empty +> flag "portable")
+      (fun ~loc ~path tds portable -> bin_tp_class ~loc ~path tds ~portable)
+  ;;
 
   let extension ~loc ~hide_loc ~path ty =
     let loc = { loc with loc_ghost = true } in
@@ -1936,8 +2060,9 @@ let () =
   |> Deriving.ignore
 ;;
 
-let bin_size =
+let () =
   Deriving.add "bin_size" ~extension:(Generate_bin_size.extension ~locality:None)
+  |> Deriving.ignore
 ;;
 
 let () =
@@ -1953,6 +2078,13 @@ let bin_write =
     ~str_type_decl:Generate_bin_write.gen
     ~sig_type_decl:Sig.bin_write
     ~extension:(Generate_bin_write.function_extension ~locality:None)
+;;
+
+let bin_write__local =
+  Deriving.add
+    "bin_write__local"
+    ~str_type_decl:Generate_bin_write.gen_local
+    ~sig_type_decl:Sig.bin_write_local
 ;;
 
 let () =
@@ -1994,13 +2126,30 @@ let bin_io_named_sig =
     ~sig_type_decl:Sig.named
 ;;
 
-let bin_io =
+let bin_io_named_sig__local =
+  Deriving.add
+    "bin_io.named_sig__local.prevent using this in source files"
+    ~sig_type_decl:Sig.named_local
+;;
+
+let () =
   let set = [ bin_shape; bin_write; bin_read; bin_type_class ] in
   Deriving.add_alias
     "bin_io"
     set
     ~sig_type_decl:[ bin_io_named_sig ]
     ~str_type_decl:(List.rev set)
+  |> Deriving.ignore
+;;
+
+let () =
+  let set = [ bin_shape; bin_write__local; bin_read; bin_type_class ] in
+  Deriving.add_alias
+    "bin_io__local"
+    set
+    ~sig_type_decl:[ bin_io_named_sig__local ]
+    ~str_type_decl:(List.rev set)
+  |> Deriving.ignore
 ;;
 
 (* [ppx_bin_prot] is used in dotnet libraries to generate code that is compatible
@@ -2035,22 +2184,23 @@ module For_f_sharp = struct
     end
   ;;
 
-  let bin_write ~loc ~path (rec_flag, tds) =
+  let bin_write ~loc ~path tds =
     let localize = false in
     let structure =
       Generate_bin_write.bin_write
         ~f_sharp_compatible:true
         ~loc
         ~path
-        (rec_flag, tds)
-        localize
+        tds
+        ~localize
+        ~portable:false
     in
     remove_labeled_arguments#structure structure
   ;;
 
-  let bin_read ~loc ~path (rec_flag, tds) =
+  let bin_read ~loc ~path tds =
     let structure =
-      Generate_bin_read.bin_read ~f_sharp_compatible:true ~loc ~path (rec_flag, tds)
+      Generate_bin_read.bin_read ~f_sharp_compatible:true ~loc ~path tds ~portable:false
     in
     remove_labeled_arguments#structure structure
   ;;

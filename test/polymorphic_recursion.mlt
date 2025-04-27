@@ -13,10 +13,10 @@ module Simple :
     type 'a t = C of 'a list t * string t
     val bin_shape_t : Bin_shape.t -> Bin_shape.t
     val bin_size_t__local :
-      'a Bin_prot.Size.sizer_local -> 'a t Bin_prot.Size.sizer_local
+      'a Bin_prot.Size.sizer__local -> 'a t Bin_prot.Size.sizer__local
     val bin_size_t : 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer
     val bin_write_t__local :
-      'a Bin_prot.Write.writer_local -> 'a t Bin_prot.Write.writer_local
+      'a Bin_prot.Write.writer__local -> 'a t Bin_prot.Write.writer__local
     val bin_write_t : 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer
     val bin_writer_t :
       'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer

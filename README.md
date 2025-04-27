@@ -113,8 +113,8 @@ for `bin_write` and `bin_size`) additionally generates definitions for
 As well, the following extension points are available:
 
 ```ocaml
-[%bin_size_local: t]       : t Bin_prot.Size.sizer_local
-[%bin_write_local: t]      : t Bin_prot.Write.writer_local
+[%bin_size_local: t]       : t Bin_prot.Size.sizer__local
+[%bin_write_local: t]      : t Bin_prot.Write.writer__local
 ```
 
 No other values from this ppx currently support local allocations.
