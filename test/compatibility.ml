@@ -7,7 +7,10 @@ open Utils
 open Type_class
 open Bin_prot.Std
 
-module Array1_extras (M : Expect_test_helpers_base.With_equal) = struct
+module Array1_extras (M : sig
+    type t [@@deriving equal, sexp_of]
+  end) =
+struct
   let to_list : type a b c. (a, b, c) Array1.t -> a list =
     fun t ->
     let get i =

@@ -192,7 +192,7 @@ end = struct
   ;;
 
   let of_kind ~loc ~hide_loc ~context (k : type_kind) : expression option =
-    match k with
+    match Ppxlib_jane.Shim.Type_kind.of_parsetree k with
     | Ptype_record lds -> Some (of_label_decs ~loc ~hide_loc ~context lds)
     | Ptype_variant cds ->
       Some
@@ -207,6 +207,8 @@ end = struct
                     |> of_type ~hide_loc ~context)
                 | Pcstr_record lds -> [ of_label_decs ~loc ~hide_loc ~context lds ] ))))
     | Ptype_abstract -> None
+    | Ptype_record_unboxed_product _ ->
+      Some (expr_errorf ~loc "unboxed record types not supported")
     | Ptype_open -> Some (expr_errorf ~loc "open types not supported")
   ;;
 
@@ -239,14 +241,16 @@ end = struct
         +> arg
              "basetype"
              (map ~f:string_literal (estring __) ||| map ~f:other_expression __)
-        +> flag "hide_locations")
+        +> flag "hide_locations"
+        +> flag "portable")
       (fun ~loc
         ~path:_
         (rec_flag, tds)
         annotation_opt
         annotation_provisionally_opt
         basetype_opt
-        hide_loc ->
+        hide_loc
+        portable ->
         let tds = List.map tds ~f:name_type_params_in_td in
         let context =
           match rec_flag with
@@ -335,7 +339,14 @@ end = struct
                 mk_exprs (fun ~tname ~args ->
                   annotate_f (app_list ~loc (shape_top_app ~loc ~tname) args))]]
         in
-        let bindings = [ value_binding ~loc ~pat:(mk_pat bin_shape_) ~expr ] in
+        let bindings =
+          [ Ppxlib_jane.Ast_builder.Default.value_binding
+              ~loc
+              ~pat:(mk_pat bin_shape_)
+              ~expr
+              ~modes:(if portable then [ { txt = Mode "portable"; loc } ] else [])
+          ]
+        in
         let structure = [ pstr_value ~loc Nonrecursive bindings ] in
         structure)
   ;;
@@ -344,7 +355,7 @@ end
 module Signature : sig
   val gen : (signature_item list, rec_flag * type_declaration list) Deriving.Generator.t
 end = struct
-  let of_td td : signature_item =
+  let of_td td ~portable : signature_item =
     let td = name_type_params_in_td td in
     let { Location.loc; txt = tname } = td.ptype_name in
     let name = bin_shape_ tname in
@@ -360,12 +371,20 @@ end = struct
         List.fold_left tvars ~init:[%type: Bin_prot.Shape.t] ~f:(fun acc _ ->
           [%type: Bin_prot.Shape.t -> [%t acc]])
       in
-      psig_value ~loc (value_description ~loc ~name:(Loc.make name ~loc) ~type_ ~prim:[])
+      psig_value
+        ~loc
+        (Ppxlib_jane.Ast_builder.Default.value_description
+           ~loc
+           ~name:(Loc.make name ~loc)
+           ~type_
+           ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
+           ~prim:[])
   ;;
 
   let gen =
-    Deriving.Generator.make Deriving.Args.empty (fun ~loc:_ ~path:_ (_rec_flag, tds) ->
-      List.map tds ~f:of_td)
+    Deriving.Generator.make
+      Deriving.Args.(empty +> flag "portable")
+      (fun ~loc:_ ~path:_ (_rec_flag, tds) portable -> List.map tds ~f:(of_td ~portable))
   ;;
 end
 
