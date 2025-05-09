@@ -59,11 +59,11 @@ module Test :
       'm Bin_prot.Write.writer -> ('a, 'm) t' Bin_prot.Write.writer
     val bin_writer_branch :
       'a Bin_prot.Type_class.writer ->
-      'b Bin_prot.Type_class.writer ->
-      ('a, 'b) branch Bin_prot.Type_class.writer
+      'm Bin_prot.Type_class.writer ->
+      ('a, 'm) branch Bin_prot.Type_class.writer
     val bin_writer_t' :
       'a Bin_prot.Type_class.writer ->
-      'b Bin_prot.Type_class.writer -> ('a, 'b) t' Bin_prot.Type_class.writer
+      'm Bin_prot.Type_class.writer -> ('a, 'm) t' Bin_prot.Type_class.writer
     val __bin_read_branch__ :
       'a Bin_prot.Read.reader ->
       'm Bin_prot.Read.reader -> ('a, 'm) branch Bin_prot.Read.vtag_reader
@@ -78,11 +78,11 @@ module Test :
       'm Bin_prot.Read.reader -> ('a, 'm) t' Bin_prot.Read.reader
     val bin_reader_branch :
       'a Bin_prot.Type_class.reader ->
-      'b Bin_prot.Type_class.reader ->
-      ('a, 'b) branch Bin_prot.Type_class.reader
+      'm Bin_prot.Type_class.reader ->
+      ('a, 'm) branch Bin_prot.Type_class.reader
     val bin_reader_t' :
       'a Bin_prot.Type_class.reader ->
-      'b Bin_prot.Type_class.reader -> ('a, 'b) t' Bin_prot.Type_class.reader
+      'm Bin_prot.Type_class.reader -> ('a, 'm) t' Bin_prot.Type_class.reader
     val bin_branch :
       'a Bin_prot.Type_class.t ->
       'b Bin_prot.Type_class.t -> ('a, 'b) branch Bin_prot.Type_class.t
