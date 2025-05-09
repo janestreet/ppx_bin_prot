@@ -30,8 +30,8 @@ end = struct
   let bin_write_t = (bin_write_t__local :> _ Bin_prot.Write.writer)
   let _ = bin_write_t
 
-  let bin_writer_t =
-    ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
+  let bin_writer_t : t Bin_prot.Type_class.writer =
+    { size = bin_size_t; write = bin_write_t }
   ;;
 
   let _ = bin_writer_t
@@ -87,8 +87,8 @@ end = struct
   let bin_write_t = (bin_write_t__local :> _ Bin_prot.Write.writer)
   let _ = bin_write_t
 
-  let bin_writer_t =
-    ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
+  let bin_writer_t : t Bin_prot.Type_class.writer =
+    { size = bin_size_t; write = bin_write_t }
   ;;
 
   let _ = bin_writer_t
@@ -97,8 +97,8 @@ end = struct
   let bin_read_t : t Bin_prot.Read.reader = bin_read_int
   let _ = bin_read_t
 
-  let bin_reader_t =
-    ({ read = bin_read_t; vtag_read = __bin_read_t__ } : _ Bin_prot.Type_class.reader)
+  let bin_reader_t : t Bin_prot.Type_class.reader =
+    { read = bin_read_t; vtag_read = __bin_read_t__ }
   ;;
 
   let _ = bin_reader_t
@@ -167,11 +167,11 @@ and bin_write_t__word : t__word Bin_prot.Write.writer =
 let _ = bin_write_t
 and _ = bin_write_t__word
 
-let bin_writer_t =
-  ({ size = bin_size_t; write = bin_write_t } : _ Bin_prot.Type_class.writer)
+let bin_writer_t : t Bin_prot.Type_class.writer =
+  { size = bin_size_t; write = bin_write_t }
 
-and bin_writer_t__word =
-  ({ size = bin_size_t__word; write = bin_write_t__word } : _ Bin_prot.Type_class.writer)
+and bin_writer_t__word : t__word Bin_prot.Type_class.writer =
+  { size = bin_size_t__word; write = bin_write_t__word }
 ;;
 
 let _ = bin_writer_t
@@ -211,12 +211,11 @@ and bin_read_t__word : t__word Bin_prot.Read.reader =
 let _ = bin_read_t
 and _ = bin_read_t__word
 
-let bin_reader_t =
-  ({ read = bin_read_t; vtag_read = __bin_read_t__ } : _ Bin_prot.Type_class.reader)
+let bin_reader_t : t Bin_prot.Type_class.reader =
+  { read = bin_read_t; vtag_read = __bin_read_t__ }
 
-and bin_reader_t__word =
-  ({ read = bin_read_t__word; vtag_read = __bin_read_t__word__ }
-   : _ Bin_prot.Type_class.reader)
+and bin_reader_t__word : t__word Bin_prot.Type_class.reader =
+  { read = bin_read_t__word; vtag_read = __bin_read_t__word__ }
 ;;
 
 let _ = bin_reader_t

@@ -148,12 +148,19 @@ module Sig = struct
       ptyp_arrow ~loc Nolabel (wrap_type ~loc ~id:arg tp) acc)
   ;;
 
+  let generate_poly_type ~loc constructor td =
+    Ppxlib_jane.Ast_builder.Default.ptyp_poly
+      ~loc
+      (List.map td.ptype_params ~f:Ppxlib_jane.get_type_param_name_and_jkind)
+      (mk_typ ~hide_params:false constructor td)
+  ;;
+
   let mk ~can_generate_local name_format type_constr =
     Staged.stage (fun td ~localize:localize_requested ~portable ->
       let generate ~locality =
         let loc = td.ptype_loc in
         let name = Loc.map ~f:(name_format ~locality) td.ptype_name in
-        let typ = mk_typ ~hide_params:false (type_constr ~locality) td in
+        let typ = generate_poly_type ~loc (type_constr ~locality) td in
         psig_value
           ~loc
           (Ppxlib_jane.Ast_builder.Default.value_description
@@ -340,13 +347,6 @@ end = struct
   ;;
 end
 
-let generate_poly_type ~loc constructor td =
-  Ppxlib_jane.Ast_builder.Default.ptyp_poly
-    ~loc
-    (List.map td.ptype_params ~f:Ppxlib_jane.get_type_param_name_and_jkind)
-    (Sig.mk_typ ~hide_params:false constructor td)
-;;
-
 let make_value
   ~locality
   ~loc
@@ -364,7 +364,7 @@ let make_value
   let constraint_ =
     if hide_params
     then Sig.mk_typ ~hide_params (type_constr ~locality) td
-    else generate_poly_type ~loc (type_constr ~locality) td
+    else Sig.generate_poly_type ~loc (type_constr ~locality) td
   in
   let pat, expr =
     (* When [constraint_] has universally quantified type variables, we need to put the
@@ -1234,7 +1234,7 @@ module Generate_bin_write = struct
       td
   ;;
 
-  let bin_writer_td ~loc td ~locality ~portable =
+  let bin_writer_td ~should_omit_type_params ~loc td ~locality ~portable =
     let body =
       let vars = vars_of_params td ~f:bin_writer_arg in
       writer_type_class_record
@@ -1255,7 +1255,7 @@ module Generate_bin_write = struct
       ~portable
       ~loc
       ~type_constr:(Typ.create "Bin_prot.Type_class.writer")
-      ~hide_params:true
+      ~hide_params:should_omit_type_params
       ~make_value_name:bin_writer_name
       ~make_arg_name:bin_writer_arg
       ~body
@@ -1283,7 +1283,7 @@ module Generate_bin_write = struct
     in
     let writer_bindings =
       let writer_bindings ~locality =
-        List.map tds ~f:(bin_writer_td ~loc ~locality ~portable)
+        List.map tds ~f:(bin_writer_td ~should_omit_type_params ~loc ~locality ~portable)
       in
       [ writer_bindings ~locality:None ]
     in
@@ -1832,14 +1832,15 @@ module Generate_bin_read = struct
       then None, None
       else
         ( Some
-            (generate_poly_type
+            (Sig.generate_poly_type
                ~loc
                (Typ.create
                   "Bin_prot.Read.vtag_reader"
                   ~locality
                   ~arg_constr:"Bin_prot.Read.reader")
                td)
-        , Some (generate_poly_type ~loc (Typ.create "Bin_prot.Read.reader" ~locality) td)
+        , Some
+            (Sig.generate_poly_type ~loc (Typ.create "Bin_prot.Read.reader" ~locality) td)
         )
     in
     let read_binding, vtag_read_binding =
@@ -1872,7 +1873,7 @@ module Generate_bin_read = struct
         ~portable
         ~loc
         ~type_constr:(Typ.create "Bin_prot.Type_class.reader")
-        ~hide_params:true
+        ~hide_params:should_omit_type_params
         ~make_value_name:bin_reader_name
         ~make_arg_name:bin_reader_arg
         ~body
