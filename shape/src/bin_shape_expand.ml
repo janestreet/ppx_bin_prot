@@ -167,7 +167,8 @@ let of_type
     | Ptyp_class _
     | Ptyp_alias _
     | Ptyp_package _
-    | Ptyp_extension _ ->
+    | Ptyp_extension _
+    | Ptyp_open _ ->
       expr_errorf ~loc "unsupported type: %s" (string_of_core_type typ)
   in
   traverse

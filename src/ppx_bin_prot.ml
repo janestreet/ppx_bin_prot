@@ -466,7 +466,7 @@ module Generate_bin_size = struct
       List.map args ~f:(fun ty ->
         match bin_size_type full_type_name ty.ptyp_loc ty ~locality with
         | `Fun e -> e
-        | `Match cases -> pexp_function ~loc:{ ty.ptyp_loc with loc_ghost = true } cases)
+        | `Match cases -> pexp_function_cases ~loc:{ ty.ptyp_loc with loc_ghost = true } cases)
     in
     mk_abst_call ~loc id sizers ~locality
 
@@ -756,7 +756,7 @@ module Generate_bin_size = struct
     | `Fun fun_expr when don't_expand -> fun_expr
     | `Fun fun_expr ->
       alias_or_fun fun_expr [%expr fun v -> [%e eapply ~loc fun_expr [ [%expr v] ]]]
-    | `Match matchings -> pexp_function ~loc matchings
+    | `Match matchings -> pexp_function_cases ~loc matchings
   ;;
 
   let sizer_body_of_td ~path td ~locality =
@@ -855,7 +855,7 @@ module Generate_bin_write = struct
         match bin_write_type full_type_name ty.ptyp_loc ty ~locality with
         | `Fun e -> e
         | `Match cases ->
-          [%expr fun buf ~pos -> [%e pexp_function ~loc:ty.ptyp_loc cases]])
+          [%expr fun buf ~pos -> [%e pexp_function_cases ~loc:ty.ptyp_loc cases]])
     in
     mk_abst_call ~loc id writers ~locality
 
@@ -1135,7 +1135,7 @@ module Generate_bin_write = struct
       alias_or_fun
         fun_expr
         [%expr fun buf ~pos v -> [%e mk_buf_pos_call fun_expr ~loc [%expr v]]]
-    | `Match matchings -> [%expr fun buf ~pos -> [%e pexp_function ~loc matchings]]
+    | `Match matchings -> [%expr fun buf ~pos -> [%e pexp_function_cases ~loc matchings]]
   ;;
 
   let writer_type_class_record ~loc ~size ~write =
