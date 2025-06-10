@@ -49,12 +49,12 @@ end = struct
   type t = int [@@deriving_inline bin_write ~portable]
 
   let _ = fun (_ : t) -> ()
-  let bin_size_t : t Bin_prot.Size.sizer @@ portable = bin_size_int
+  let bin_size_t : t Bin_prot.Size.sizer @ portable = bin_size_int
   let _ = bin_size_t
-  let bin_write_t : t Bin_prot.Write.writer @@ portable = bin_write_int
+  let bin_write_t : t Bin_prot.Write.writer @ portable = bin_write_int
   let _ = bin_write_t
 
-  let bin_writer_t : t Bin_prot.Type_class.writer @@ portable =
+  let bin_writer_t : t Bin_prot.Type_class.writer @ portable =
     { size = bin_size_t; write = bin_write_t }
   ;;
 
@@ -82,12 +82,12 @@ end = struct
   type t = int [@@deriving_inline bin_write ~localize ~portable]
 
   let _ = fun (_ : t) -> ()
-  let bin_size_t__local : t Bin_prot.Size.sizer__local @@ portable = bin_size_int__local
+  let bin_size_t__local : t Bin_prot.Size.sizer__local @ portable = bin_size_int__local
   let _ = bin_size_t__local
   let bin_size_t @ portable = (bin_size_t__local :> _ Bin_prot.Size.sizer)
   let _ = bin_size_t
 
-  let bin_write_t__local : t Bin_prot.Write.writer__local @@ portable =
+  let bin_write_t__local : t Bin_prot.Write.writer__local @ portable =
     bin_write_int__local
   ;;
 
@@ -95,7 +95,7 @@ end = struct
   let bin_write_t @ portable = (bin_write_t__local :> _ Bin_prot.Write.writer)
   let _ = bin_write_t
 
-  let bin_writer_t : t Bin_prot.Type_class.writer @@ portable =
+  let bin_writer_t : t Bin_prot.Type_class.writer @ portable =
     { size = bin_size_t; write = bin_write_t }
   ;;
 
@@ -123,12 +123,12 @@ end = struct
   type t = int [@@deriving_inline (bin_write [@mode local]) ~portable]
 
   let _ = fun (_ : t) -> ()
-  let bin_size_t__local : t Bin_prot.Size.sizer__local @@ portable = bin_size_int__local
+  let bin_size_t__local : t Bin_prot.Size.sizer__local @ portable = bin_size_int__local
   let _ = bin_size_t__local
   let bin_size_t @ portable = (bin_size_t__local :> _ Bin_prot.Size.sizer)
   let _ = bin_size_t
 
-  let bin_write_t__local : t Bin_prot.Write.writer__local @@ portable =
+  let bin_write_t__local : t Bin_prot.Write.writer__local @ portable =
     bin_write_int__local
   ;;
 
@@ -136,7 +136,7 @@ end = struct
   let bin_write_t @ portable = (bin_write_t__local :> _ Bin_prot.Write.writer)
   let _ = bin_write_t
 
-  let bin_writer_t : t Bin_prot.Type_class.writer @@ portable =
+  let bin_writer_t : t Bin_prot.Type_class.writer @ portable =
     { size = bin_size_t; write = bin_write_t }
   ;;
 
@@ -162,12 +162,12 @@ end = struct
   type t = int [@@deriving_inline bin_read ~portable]
 
   let _ = fun (_ : t) -> ()
-  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @@ portable = __bin_read_int__
+  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @ portable = __bin_read_int__
   let _ = __bin_read_t__
-  let bin_read_t : t Bin_prot.Read.reader @@ portable = bin_read_int
+  let bin_read_t : t Bin_prot.Read.reader @ portable = bin_read_int
   let _ = bin_read_t
 
-  let bin_reader_t : t Bin_prot.Type_class.reader @@ portable =
+  let bin_reader_t : t Bin_prot.Type_class.reader @ portable =
     { read = bin_read_t; vtag_read = __bin_read_t__ }
   ;;
 
@@ -232,22 +232,22 @@ end = struct
   ;;
 
   let _ = bin_shape_t
-  let bin_size_t : t Bin_prot.Size.sizer @@ portable = bin_size_int
+  let bin_size_t : t Bin_prot.Size.sizer @ portable = bin_size_int
   let _ = bin_size_t
-  let bin_write_t : t Bin_prot.Write.writer @@ portable = bin_write_int
+  let bin_write_t : t Bin_prot.Write.writer @ portable = bin_write_int
   let _ = bin_write_t
 
-  let bin_writer_t : t Bin_prot.Type_class.writer @@ portable =
+  let bin_writer_t : t Bin_prot.Type_class.writer @ portable =
     { size = bin_size_t; write = bin_write_t }
   ;;
 
   let _ = bin_writer_t
-  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @@ portable = __bin_read_int__
+  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @ portable = __bin_read_int__
   let _ = __bin_read_t__
-  let bin_read_t : t Bin_prot.Read.reader @@ portable = bin_read_int
+  let bin_read_t : t Bin_prot.Read.reader @ portable = bin_read_int
   let _ = bin_read_t
 
-  let bin_reader_t : t Bin_prot.Type_class.reader @@ portable =
+  let bin_reader_t : t Bin_prot.Type_class.reader @ portable =
     { read = bin_read_t; vtag_read = __bin_read_t__ }
   ;;
 
@@ -289,12 +289,12 @@ end = struct
   ;;
 
   let _ = bin_shape_t
-  let bin_size_t__local : t Bin_prot.Size.sizer__local @@ portable = bin_size_int__local
+  let bin_size_t__local : t Bin_prot.Size.sizer__local @ portable = bin_size_int__local
   let _ = bin_size_t__local
   let bin_size_t @ portable = (bin_size_t__local :> _ Bin_prot.Size.sizer)
   let _ = bin_size_t
 
-  let bin_write_t__local : t Bin_prot.Write.writer__local @@ portable =
+  let bin_write_t__local : t Bin_prot.Write.writer__local @ portable =
     bin_write_int__local
   ;;
 
@@ -302,17 +302,17 @@ end = struct
   let bin_write_t @ portable = (bin_write_t__local :> _ Bin_prot.Write.writer)
   let _ = bin_write_t
 
-  let bin_writer_t : t Bin_prot.Type_class.writer @@ portable =
+  let bin_writer_t : t Bin_prot.Type_class.writer @ portable =
     { size = bin_size_t; write = bin_write_t }
   ;;
 
   let _ = bin_writer_t
-  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @@ portable = __bin_read_int__
+  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @ portable = __bin_read_int__
   let _ = __bin_read_t__
-  let bin_read_t : t Bin_prot.Read.reader @@ portable = bin_read_int
+  let bin_read_t : t Bin_prot.Read.reader @ portable = bin_read_int
   let _ = bin_read_t
 
-  let bin_reader_t : t Bin_prot.Type_class.reader @@ portable =
+  let bin_reader_t : t Bin_prot.Type_class.reader @ portable =
     { read = bin_read_t; vtag_read = __bin_read_t__ }
   ;;
 
@@ -354,12 +354,12 @@ end = struct
   ;;
 
   let _ = bin_shape_t
-  let bin_size_t__local : t Bin_prot.Size.sizer__local @@ portable = bin_size_int__local
+  let bin_size_t__local : t Bin_prot.Size.sizer__local @ portable = bin_size_int__local
   let _ = bin_size_t__local
   let bin_size_t @ portable = (bin_size_t__local :> _ Bin_prot.Size.sizer)
   let _ = bin_size_t
 
-  let bin_write_t__local : t Bin_prot.Write.writer__local @@ portable =
+  let bin_write_t__local : t Bin_prot.Write.writer__local @ portable =
     bin_write_int__local
   ;;
 
@@ -367,17 +367,17 @@ end = struct
   let bin_write_t @ portable = (bin_write_t__local :> _ Bin_prot.Write.writer)
   let _ = bin_write_t
 
-  let bin_writer_t : t Bin_prot.Type_class.writer @@ portable =
+  let bin_writer_t : t Bin_prot.Type_class.writer @ portable =
     { size = bin_size_t; write = bin_write_t }
   ;;
 
   let _ = bin_writer_t
-  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @@ portable = __bin_read_int__
+  let __bin_read_t__ : t Bin_prot.Read.vtag_reader @ portable = __bin_read_int__
   let _ = __bin_read_t__
-  let bin_read_t : t Bin_prot.Read.reader @@ portable = bin_read_int
+  let bin_read_t : t Bin_prot.Read.reader @ portable = bin_read_int
   let _ = bin_read_t
 
-  let bin_reader_t : t Bin_prot.Type_class.reader @@ portable =
+  let bin_reader_t : t Bin_prot.Type_class.reader @ portable =
     { read = bin_read_t; vtag_read = __bin_read_t__ }
   ;;
 
@@ -479,14 +479,15 @@ end = struct
   let _ = bin_shape_t
   and _ = bin_shape_u
 
-  let rec bin_size_t : 'a. 'a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer @@ portable =
+  let rec bin_size_t : 'a. ('a Bin_prot.Size.sizer -> 'a t Bin_prot.Size.sizer) @ portable
+    =
     fun _size_of_a -> function
     | { a = v1; u = v2 } ->
       let size = 0 in
       let size = Bin_prot.Common.( + ) size (_size_of_a v1) in
       Bin_prot.Common.( + ) size (bin_size_u v2)
 
-  and bin_size_u : u Bin_prot.Size.sizer @@ portable = function
+  and bin_size_u : u Bin_prot.Size.sizer @ portable = function
     | { t = v1 } ->
       let size = 0 in
       Bin_prot.Common.( + ) size (bin_size_t bin_size_int v1)
@@ -496,14 +497,14 @@ end = struct
   and _ = bin_size_u
 
   let rec bin_write_t
-    : 'a. 'a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer @@ portable
+    : 'a. ('a Bin_prot.Write.writer -> 'a t Bin_prot.Write.writer) @ portable
     =
     fun _write_a buf ~pos -> function
     | { a = v1; u = v2 } ->
       let pos = _write_a buf ~pos v1 in
       bin_write_u buf ~pos v2
 
-  and bin_write_u : u Bin_prot.Write.writer @@ portable =
+  and bin_write_u : u Bin_prot.Write.writer @ portable =
     fun buf ~pos -> function
     | { t = v1 } -> bin_write_t bin_write_int buf ~pos v1
   ;;
@@ -512,14 +513,14 @@ end = struct
   and _ = bin_write_u
 
   let bin_writer_t
-    : 'a. 'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer @@ portable
+    : 'a. ('a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer) @ portable
     =
     fun bin_writer_a ->
     { size = (fun v -> bin_size_t bin_writer_a.size v)
     ; write = (fun v -> bin_write_t bin_writer_a.write v)
     }
 
-  and bin_writer_u : u Bin_prot.Type_class.writer @@ portable =
+  and bin_writer_u : u Bin_prot.Type_class.writer @ portable =
     { size = bin_size_u; write = bin_write_u }
   ;;
 
@@ -527,22 +528,22 @@ end = struct
   and _ = bin_writer_u
 
   let rec __bin_read_t__
-    : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader @@ portable
+    : 'a. ('a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader) @ portable
     =
     fun _of__a _buf ~pos_ref _vint ->
     Bin_prot.Common.raise_variant_wrong_type "modalities.ml.Recursive.t" !pos_ref
 
-  and __bin_read_u__ : u Bin_prot.Read.vtag_reader @@ portable =
+  and __bin_read_u__ : u Bin_prot.Read.vtag_reader @ portable =
     fun _buf ~pos_ref _vint ->
     Bin_prot.Common.raise_variant_wrong_type "modalities.ml.Recursive.u" !pos_ref
 
-  and bin_read_t : 'a. 'a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader @@ portable =
+  and bin_read_t : 'a. ('a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader) @ portable =
     fun _of__a buf ~pos_ref ->
     let v_a = _of__a buf ~pos_ref in
     let v_u = bin_read_u buf ~pos_ref in
     { a = v_a; u = v_u }
 
-  and bin_read_u : u Bin_prot.Read.reader @@ portable =
+  and bin_read_u : u Bin_prot.Read.reader @ portable =
     fun buf ~pos_ref ->
     let v_t = (bin_read_t bin_read_int) buf ~pos_ref in
     { t = v_t }
@@ -554,7 +555,7 @@ end = struct
   and _ = bin_read_u
 
   let bin_reader_t
-    : 'a. 'a Bin_prot.Type_class.reader -> 'a t Bin_prot.Type_class.reader @@ portable
+    : 'a. ('a Bin_prot.Type_class.reader -> 'a t Bin_prot.Type_class.reader) @ portable
     =
     fun bin_reader_a ->
     { read = (fun buf ~pos_ref -> (bin_read_t bin_reader_a.read) buf ~pos_ref)
@@ -562,7 +563,7 @@ end = struct
         (fun buf ~pos_ref vtag -> (__bin_read_t__ bin_reader_a.read) buf ~pos_ref vtag)
     }
 
-  and bin_reader_u : u Bin_prot.Type_class.reader @@ portable =
+  and bin_reader_u : u Bin_prot.Type_class.reader @ portable =
     { read = bin_read_u; vtag_read = __bin_read_u__ }
   ;;
 
