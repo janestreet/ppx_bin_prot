@@ -5,5 +5,5 @@
   (pps ppx_bin_prot)))
 
 (alias
- (name DEFAULT)
+ (name default)
  (deps example.ml.pp))
