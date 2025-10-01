@@ -5,5 +5,5 @@
   (pps ppx_assert ppx_custom_printf ppx_bin_prot ppx_inline_test)))
 
 (alias
- (name DEFAULT)
+ (name default)
  (deps test.ml.pp alias runtest))

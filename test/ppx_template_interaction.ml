@@ -179,11 +179,19 @@ and _ = bin_writer_t__word
 
 let __bin_read_t__ : t Bin_prot.Read.vtag_reader =
   fun _buf ~pos_ref _vint ->
-  Bin_prot.Common.raise_variant_wrong_type "ppx_template_interaction.ml.t" !pos_ref
+  match
+    Bin_prot.Common.raise_variant_wrong_type "ppx_template_interaction.ml.t" !pos_ref
+  with
+  | (_ : Bin_prot.Common.nothing) -> .
 
 and __bin_read_t__word__ : t__word Bin_prot.Read.vtag_reader =
   fun _buf ~pos_ref _vint ->
-  Bin_prot.Common.raise_variant_wrong_type "ppx_template_interaction.ml.t__word" !pos_ref
+  match
+    Bin_prot.Common.raise_variant_wrong_type
+      "ppx_template_interaction.ml.t__word"
+      !pos_ref
+  with
+  | (_ : Bin_prot.Common.nothing) -> .
 ;;
 
 let _ = __bin_read_t__

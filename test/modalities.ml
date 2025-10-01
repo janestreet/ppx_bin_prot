@@ -531,11 +531,17 @@ end = struct
     : 'a. ('a Bin_prot.Read.reader -> 'a t Bin_prot.Read.vtag_reader) @ portable
     =
     fun _of__a _buf ~pos_ref _vint ->
-    Bin_prot.Common.raise_variant_wrong_type "modalities.ml.Recursive.t" !pos_ref
+    match
+      Bin_prot.Common.raise_variant_wrong_type "modalities.ml.Recursive.t" !pos_ref
+    with
+    | (_ : Bin_prot.Common.nothing) -> .
 
   and __bin_read_u__ : u Bin_prot.Read.vtag_reader @ portable =
     fun _buf ~pos_ref _vint ->
-    Bin_prot.Common.raise_variant_wrong_type "modalities.ml.Recursive.u" !pos_ref
+    match
+      Bin_prot.Common.raise_variant_wrong_type "modalities.ml.Recursive.u" !pos_ref
+    with
+    | (_ : Bin_prot.Common.nothing) -> .
 
   and bin_read_t : 'a. ('a Bin_prot.Read.reader -> 'a t Bin_prot.Read.reader) @ portable =
     fun _of__a buf ~pos_ref ->
