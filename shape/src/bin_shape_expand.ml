@@ -193,7 +193,8 @@ end = struct
 
   let of_kind ~loc ~hide_loc ~context (k : type_kind) : expression option =
     match Ppxlib_jane.Shim.Type_kind.of_parsetree k with
-    | Ptype_record lds -> Some (of_label_decs ~loc ~hide_loc ~context lds)
+    | Ptype_record lds | Ptype_record_unboxed_product lds ->
+      Some (of_label_decs ~loc ~hide_loc ~context lds)
     | Ptype_variant cds ->
       Some
         (shape_variant
@@ -207,8 +208,6 @@ end = struct
                     |> of_type ~hide_loc ~context)
                 | Pcstr_record lds -> [ of_label_decs ~loc ~hide_loc ~context lds ] ))))
     | Ptype_abstract -> None
-    | Ptype_record_unboxed_product _ ->
-      Some (expr_errorf ~loc "unboxed record types not supported")
     | Ptype_open -> Some (expr_errorf ~loc "open types not supported")
   ;;
 
