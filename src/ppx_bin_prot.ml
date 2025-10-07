@@ -76,6 +76,7 @@ let value_name ~prefix ~locality string =
 ;;
 
 let bin_read_name = value_name ~prefix:"bin_read_"
+let bin_dump_name = value_name ~prefix:"bin_dump_"
 let bin_vtag_read_name ~locality string = "__" ^ bin_read_name string ~locality ^ "__"
 let bin_reader_name = value_name ~prefix:"bin_reader_"
 let bin_size_name = value_name ~prefix:"bin_size_"
@@ -614,8 +615,15 @@ module Generate_bin_size = struct
       ~locality
 
   (* Conversion of records *)
-  and bin_size_record full_type_name loc tp ~locality =
-    let cnv_patts lbls = ppat_record ~loc lbls Closed in
+  and bin_size_record ~unboxed full_type_name loc tp ~locality =
+    let cnv_patts lbls =
+      (if unboxed
+       then Ppxlib_jane.Ast_builder.Default.ppat_record_unboxed_product ?attrs:None
+       else ppat_record)
+        ~loc
+        lbls
+        Closed
+    in
     let get_tp ld = ld.pld_type in
     let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
     bin_size_tup_rec
@@ -803,9 +811,10 @@ module Generate_bin_size = struct
       match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
       | Ptype_variant [] -> bin_size_nil full_type_name loc
       | Ptype_variant (_ :: _ as alts) -> bin_size_sum full_type_name loc alts ~locality
-      | Ptype_record flds -> bin_size_record full_type_name loc flds ~locality
-      | Ptype_record_unboxed_product _ ->
-        Location.raise_errorf ~loc "bin_size_td: unboxed record types not yet supported"
+      | Ptype_record flds ->
+        bin_size_record ~unboxed:false full_type_name loc flds ~locality
+      | Ptype_record_unboxed_product flds ->
+        bin_size_record ~unboxed:true full_type_name loc flds ~locality
       | Ptype_open ->
         Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
       | Ptype_abstract ->
@@ -1001,8 +1010,15 @@ module Generate_bin_write = struct
       ~portable
 
   (* Conversion of records *)
-  and bin_write_record full_type_name loc tp ~locality ~portable =
-    let cnv_patts lbls = ppat_record ~loc lbls Closed in
+  and bin_write_record ~unboxed full_type_name loc tp ~locality ~portable =
+    let cnv_patts lbls =
+      (if unboxed
+       then Ppxlib_jane.Ast_builder.Default.ppat_record_unboxed_product ?attrs:None
+       else ppat_record)
+        ~loc
+        lbls
+        Closed
+    in
     let get_tp ld = ld.pld_type in
     let mk_patt loc v_name ld = Located.map lident ld.pld_name, pvar ~loc v_name in
     bin_write_tup_rec
@@ -1200,9 +1216,10 @@ module Generate_bin_write = struct
       | Ptype_variant [] -> bin_write_nil full_type_name loc
       | Ptype_variant (_ :: _ as alts) ->
         bin_write_sum full_type_name loc alts ~locality ~portable
-      | Ptype_record flds -> bin_write_record full_type_name loc flds ~locality ~portable
-      | Ptype_record_unboxed_product _ ->
-        Location.raise_errorf ~loc "bin_size_td: unboxed record types not yet supported"
+      | Ptype_record flds ->
+        bin_write_record ~unboxed:false full_type_name loc flds ~locality ~portable
+      | Ptype_record_unboxed_product flds ->
+        bin_write_record ~unboxed:true full_type_name loc flds ~locality ~portable
       | Ptype_open ->
         Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
       | Ptype_abstract ->
@@ -1522,9 +1539,15 @@ module Generate_bin_read = struct
           let vint = Bin_prot.Read.bin_read_variant_int buf ~pos_ref in
           try [%e code] with
           | Bin_prot.Common.No_variant_match ->
-            Bin_prot.Common.raise_variant_wrong_type
-              [%e estring ~loc full_type_name]
-              !pos_ref])
+            (* [raise_variant_wrong_type : .. -> 'a] never returns, so we match on an
+               empty variant to satisfy the type-checker. This is a workaround for
+               non-returning functions not being able to return ['a : any]. *)
+            (match
+               Bin_prot.Common.raise_variant_wrong_type
+                 [%e estring ~loc full_type_name]
+                 !pos_ref
+             with
+             | (_ : Bin_prot.Common.nothing) -> .)])
     else `Open code
 
   (* Polymorphic record field conversion *)
@@ -1551,7 +1574,7 @@ module Generate_bin_read = struct
   ;;
 
   (* Record conversions *)
-  let bin_read_label_declaration_list full_type_name loc fields wrap =
+  let bin_read_label_declaration_list ~unboxed full_type_name loc fields wrap =
     let bindings, rec_bindings =
       let map field =
         let loc = field.pld_loc in
@@ -1566,7 +1589,15 @@ module Generate_bin_read = struct
       in
       List.map fields ~f:map |> List.unzip
     in
-    let_ins loc bindings (wrap (pexp_record ~loc rec_bindings None))
+    let record =
+      (if unboxed
+       then Ppxlib_jane.Ast_builder.Default.pexp_record_unboxed_product ?attrs:None
+       else pexp_record)
+        ~loc
+        rec_bindings
+        None
+    in
+    let_ins loc bindings (wrap record)
   ;;
 
   (* Sum type conversions *)
@@ -1589,8 +1620,12 @@ module Generate_bin_read = struct
         case ~lhs:(pint ~loc mi) ~guard:None ~rhs
       | Pcstr_record fields ->
         let rhs =
-          bin_read_label_declaration_list full_type_name loc fields (fun e ->
-            econstruct cd (Some e))
+          bin_read_label_declaration_list
+            ~unboxed:false
+            full_type_name
+            loc
+            fields
+            (fun e -> econstruct cd (Some e))
         in
         case ~lhs:(pint ~loc mi) ~guard:None ~rhs
     in
@@ -1625,8 +1660,10 @@ module Generate_bin_read = struct
   ;;
 
   (* Record conversions *)
-  let bin_read_record full_type_name loc fields =
-    let rhs = bin_read_label_declaration_list full_type_name loc fields (fun x -> x) in
+  let bin_read_record ~unboxed full_type_name loc fields =
+    let rhs =
+      bin_read_label_declaration_list ~unboxed full_type_name loc fields (fun x -> x)
+    in
     `Open rhs
   ;;
 
@@ -1648,9 +1685,9 @@ module Generate_bin_read = struct
     match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
     | Ptype_variant [] -> bin_read_nil full_type_name loc
     | Ptype_variant (_ :: _ as cds) -> bin_read_sum full_type_name loc cds
-    | Ptype_record lds -> bin_read_record full_type_name loc lds
-    | Ptype_record_unboxed_product _ ->
-      Location.raise_errorf ~loc "bin_size_td: unboxed record types not yet supported"
+    | Ptype_record lds -> bin_read_record ~unboxed:false full_type_name loc lds
+    | Ptype_record_unboxed_product lds ->
+      bin_read_record ~unboxed:true full_type_name loc lds
     | Ptype_open -> Location.raise_errorf ~loc "bin_size_td: open types not yet supported"
     | Ptype_abstract ->
       (match td.ptype_manifest with
@@ -1712,7 +1749,12 @@ module Generate_bin_read = struct
     let full_type_name = full_type_name_or_anonymous full_type_name in
     [%expr
       fun _buf ~pos_ref _vint ->
-        Bin_prot.Common.raise_variant_wrong_type [%e estring ~loc full_type_name] !pos_ref]
+        match
+          Bin_prot.Common.raise_variant_wrong_type
+            [%e estring ~loc full_type_name]
+            !pos_ref
+        with
+        | (_ : Bin_prot.Common.nothing) -> .]
   ;;
 
   let vtag_reader ~loc ~(td_class : Td_class.t) ~full_type_name ~oc_body =
@@ -1882,8 +1924,26 @@ module Generate_bin_read = struct
     vtag_read_binding, read_binding, reader_binding
   ;;
 
+  let bin_dump_td ~portable td =
+    let loc = td.ptype_loc in
+    let dump_name = bin_dump_name td.ptype_name.txt ~locality in
+    let bin_size_name = bin_size_name td.ptype_name.txt ~locality in
+    let bin_write_name = bin_write_name td.ptype_name.txt ~locality in
+    value_binding
+      ~loc
+      ~portable
+      ~pat:(pvar ~loc dump_name)
+      ~expr:
+        [%expr
+          fun ?(header = false) v ->
+            Bin_prot.Utils.bin_dump_aux
+              ~header
+              ~v_size:([%e evar ~loc bin_size_name] v)
+              ~write:(fun buf ~pos -> [%e evar ~loc bin_write_name] buf ~pos v)]
+  ;;
+
   (* Generate code from type definitions *)
-  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~portable =
+  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~portable ~util =
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
@@ -1899,14 +1959,20 @@ module Generate_bin_read = struct
         ; pstr_value ~loc Nonrecursive read_bindings
         ]
     in
+    let defs =
+      if util
+      then
+        defs @ [ pstr_value ~loc Nonrecursive (List.map tds ~f:(bin_dump_td ~portable)) ]
+      else defs
+    in
     defs @ [ pstr_value ~loc Nonrecursive reader_bindings ]
   ;;
 
   let gen =
     Deriving.Generator.make
-      Deriving.Args.(empty +> flag "portable")
-      (fun ~loc ~path tds portable ->
-        bin_read ~f_sharp_compatible:false ~loc ~path tds ~portable)
+      Deriving.Args.(empty +> flag "portable" +> flag "util")
+      (fun ~loc ~path tds portable util ->
+        bin_read ~f_sharp_compatible:false ~loc ~path tds ~portable ~util)
   ;;
 
   let function_extension ~loc ~path:_ ty =
@@ -2176,12 +2242,27 @@ let () =
    4. Type annotations on the pattern of [let rec] bindings are not supported in F#
    (e.g. this doesn't work: [let rec (a : unit -> unit) = ...]), so whenever
    [f_sharp_compatible = true], we put the type annotation as a constraint on the
-   expression rather than the pattern. *)
+   expression rather than the pattern.
+
+   5. Refutation cases (e.g. [match x with | _ -> .]) are not supported in F#. We
+   replace them with [failwith "Unreachable"]. *)
 module For_f_sharp = struct
   let remove_labeled_arguments =
     object
       inherit Ast_traverse.map
       method! arg_label (_ : arg_label) = Nolabel
+    end
+  ;;
+
+  let remove_refutations =
+    object
+      inherit Ast_traverse.map as super
+
+      method! expression expr =
+        let loc = expr.pexp_loc in
+        match expr.pexp_desc with
+        | Pexp_unreachable -> [%expr failwith "Unreachable"]
+        | _ -> super#expression expr
     end
   ;;
 
@@ -2196,13 +2277,21 @@ module For_f_sharp = struct
         ~localize
         ~portable:false
     in
-    remove_labeled_arguments#structure structure
+    remove_refutations#structure (remove_labeled_arguments#structure structure)
   ;;
 
-  let bin_read ~loc ~path tds =
+  let bin_read ~loc ~path ~util tds =
     let structure =
-      Generate_bin_read.bin_read ~f_sharp_compatible:true ~loc ~path tds ~portable:false
+      Generate_bin_read.bin_read
+        ~f_sharp_compatible:true
+        ~loc
+        ~path
+        ~util
+        tds
+        ~portable:false
     in
-    remove_labeled_arguments#structure structure
+    remove_refutations#structure (remove_labeled_arguments#structure structure)
   ;;
 end
+
+let registered = ()

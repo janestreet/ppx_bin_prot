@@ -16,8 +16,8 @@ depends: [
   "ppx_here"
   "ppxlib_jane"
   "dune"                {>= "3.17.0"}
-  "ocaml-compiler-libs" {= "v0.17.0+jst"}
-  "ppxlib"              {= "0.33.0+jst"}
+  "ocaml-compiler-libs" {= "v0.17.0+ox"}
+  "ppxlib"              {= "0.33.0+ox"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Generation of bin_prot readers and writers from types"
