@@ -376,7 +376,8 @@ end = struct
            ~loc
            ~name:(Loc.make name ~loc)
            ~type_
-           ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
+           ~modalities:
+             (if portable then Ppxlib_jane.Shim.Modalities.portable ~loc else [])
            ~prim:[])
   ;;
 

@@ -17,10 +17,10 @@ open Locality_mode
 module Locality_modality = struct
   type t = Global
 
-  let of_modalities (modalities : Ppxlib_jane.modality list) =
+  let of_modalities (modalities : Ppxlib_jane.modality Loc.t list) =
     List.find_map modalities ~f:(function
-      | Modality "global" -> Some Global
-      | Modality _ -> None)
+      | { txt = Modality "global"; _ } -> Some Global
+      | { txt = Modality _; _ } -> None)
   ;;
 
   let of_ld ld =
@@ -168,7 +168,8 @@ module Sig = struct
              ~loc
              ~name
              ~type_:typ
-             ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
+             ~modalities:
+               (if portable then Ppxlib_jane.Shim.Modalities.portable ~loc else [])
              ~prim:[])
       in
       if can_generate_local && localize_requested

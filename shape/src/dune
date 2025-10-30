@@ -1,6 +1,6 @@
 (library
  (name bin_shape_expand)
  (public_name ppx_bin_prot.shape-expander)
- (libraries base ppxlib ppxlib_jane ppx_here.expander)
+ (libraries base ppx_here.expander ppxlib ppxlib_jane)
  (preprocess
   (pps ppxlib.metaquot)))
