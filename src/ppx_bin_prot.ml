@@ -17,10 +17,10 @@ open Locality_mode
 module Locality_modality = struct
   type t = Global
 
-  let of_modalities (modalities : Ppxlib_jane.modality list) =
+  let of_modalities (modalities : Ppxlib_jane.modality Loc.t list) =
     List.find_map modalities ~f:(function
-      | Modality "global" -> Some Global
-      | Modality _ -> None)
+      | { txt = Modality "global"; _ } -> Some Global
+      | { txt = Modality _; _ } -> None)
   ;;
 
   let of_ld ld =
@@ -168,7 +168,8 @@ module Sig = struct
              ~loc
              ~name
              ~type_:typ
-             ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
+             ~modalities:
+               (if portable then Ppxlib_jane.Shim.Modalities.portable ~loc else [])
              ~prim:[])
       in
       if can_generate_local && localize_requested
@@ -1230,10 +1231,37 @@ module Generate_bin_write = struct
     make_fun ~loc ~don't_expand:(td_is_nil td) res
   ;;
 
-  let project_vars expr vars ~field_name =
+  let lambda_args ~loc ~args body =
+    { pexp_desc =
+        Ppxlib_jane.Shim.Pexp_function.to_parsetree
+          ~params:
+            (List.map
+               args
+               ~f:
+                 (fun
+                   (arg_label, name) : Ppxlib_jane.Shim.Pexp_function.function_param ->
+                 { pparam_desc = Pparam_val (arg_label, None, pvar ~loc name)
+                 ; pparam_loc = loc
+                 }))
+          ~constraint_:Ppxlib_jane.Shim.Pexp_function.Function_constraint.none
+          ~body:(Pfunction_body body)
+    ; pexp_loc = loc
+    ; pexp_loc_stack = []
+    ; pexp_attributes = []
+    }
+  ;;
+
+  let apply_args ~loc ~args call =
+    pexp_apply
+      ~loc
+      call
+      (List.map args ~f:(fun (arg_label, name) -> arg_label, evar ~loc name))
+  ;;
+
+  let project_vars expr vars ~args ~field_name =
     let loc = expr.pexp_loc in
     let call = project_vars expr vars ~field_name in
-    alias_or_fun call [%expr fun v -> [%e eapply ~loc call [ [%expr v] ]]]
+    alias_or_fun call (lambda_args ~loc ~args (apply_args ~loc ~args call))
   ;;
 
   (* Generate code from type definitions *)
@@ -1260,11 +1288,13 @@ module Generate_bin_write = struct
           (project_vars
              (evar ~loc (bin_size_name td.ptype_name.txt ~locality))
              vars
+             ~args:[ Nolabel, "v" ]
              ~field_name:"size")
         ~write:
           (project_vars
              (evar ~loc (bin_write_name td.ptype_name.txt ~locality))
              vars
+             ~args:[ Nolabel, "buf"; Labelled "pos", "pos"; Nolabel, "v" ]
              ~field_name:"write")
     in
     make_value
