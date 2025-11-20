@@ -39,8 +39,8 @@ let expect_raise f =
 ;;
 
 let eval_to_digest (exp : Shape.t) : string =
-  (* Test result from `quick' [eval_to_digest] always matches the `slow' sequence:
-     [eval] ; [to_digest]. *)
+  (* Test result from `quick' [eval_to_digest] always matches the `slow' sequence: [eval]
+     ; [to_digest]. *)
   let res_quick = Shape.eval_to_digest exp in
   let res_slow = Canonical.to_digest (Shape.eval exp) in
   [%test_result: Shape.Digest.t] res_quick ~expect:res_slow;
@@ -84,8 +84,7 @@ let ensure_all_same exps =
 ;;
 
 let ensure_shape exp ~expect =
-  (* Test that a Shape.t [exp], evaluates to the expected
-     Canonical.t [expect] *)
+  (* Test that a Shape.t [exp], evaluates to the expected Canonical.t [expect] *)
   [%test_result: Canonical.t] (Shape.eval exp) ~expect
 ;;
 
@@ -1229,8 +1228,8 @@ module Dub = struct
       M.bin_shape_t
     ;;
 
-    (* [gen_t n] constructs a type-expression for t<n>, which if tricky to
-       express directly in OCaml. But possible. See [gen_t'] above. *)
+    (* [gen_t n] constructs a type-expression for t<n>, which if tricky to express
+       directly in OCaml. But possible. See [gen_t'] above. *)
     let gen_t n =
       assert (n >= 0);
       let open Shape in
@@ -1455,7 +1454,7 @@ module Example_inner_outer1 = struct
 end
 
 module Example_inner_outer2 = struct
-  (* .. within  sequence of mut-blocks *)
+  (* .. within sequence of mut-blocks *)
   type 'a inner =
     | Tight of 'a inner
     | Loose of 'a
@@ -1513,7 +1512,7 @@ module Example_mut_recursion_with_extra_aliases = struct
       | A of t
       | B of u
 
-    (* changed [t1] -> [t] ...*)
+    (* changed [t1] -> [t] ... *)
     and t1 = t
 
     and u =
@@ -1783,7 +1782,7 @@ module Annotations = struct
   end
 
   module D2 = struct
-    (* Annotations are different from the original un-annotated type.  And different from
+    (* Annotations are different from the original un-annotated type. And different from
        records and new base types. *)
     module Orig = struct
       type t = int [@@deriving bin_io]

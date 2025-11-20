@@ -4,7 +4,7 @@ open Base
 open Ppxlib
 open Ast_builder.Default
 
-(* +-----------------------------------------------------------------+
+(*=+-----------------------------------------------------------------+
    | Name mangling                                                   |
    +-----------------------------------------------------------------+ *)
 
@@ -109,7 +109,7 @@ module Typ = struct
     }
   ;;
 end
-(* +-----------------------------------------------------------------+
+(*=+-----------------------------------------------------------------+
    | Signature generators                                            |
    +-----------------------------------------------------------------+ *)
 
@@ -261,7 +261,7 @@ module Sig = struct
   let named_local = mk_named ~with_localize:(Some true)
 end
 
-(* +-----------------------------------------------------------------+
+(*=+-----------------------------------------------------------------+
    | Utility functions                                               |
    +-----------------------------------------------------------------+ *)
 
@@ -371,11 +371,15 @@ let make_value
   let pat, expr =
     (* When [constraint_] has universally quantified type variables, we need to put the
        constraint on the pattern:
-       {[ let f : 'a. 'a sizer -> 'a t sizer = ... ]}
+       {[
+         let f : 'a. 'a sizer -> 'a t sizer = ...
+       ]}
 
-       When we generate F# code, however, we can't put a constraint on the pattern in
-       the case of [let rec] declarations, so we instead have to put it on the expression:
-       {[ let rec f = (... : _ sizer -> _ sizer) ]}
+       When we generate F# code, however, we can't put a constraint on the pattern in the
+       case of [let rec] declarations, so we instead have to put it on the expression:
+       {[
+         let rec f = (... : _ sizer -> _ sizer)
+       ]}
 
        We use the [hide_params] value as a differentiator between these two cases, as it
        is always [false] when we need universally quantified type variables, and always
@@ -435,11 +439,11 @@ let should_omit_type_params ~f_sharp_compatible tds =
 
 let aliases_of_tds tds ~function_name ~function_type_name ~portable =
   (* So that ~localize doesn't double the size of the generated code, we define the non
-     @local function as an alias to the @local function. This only works for ground
-     types, as [(buf -> pos:pos -> 'a -> pos) -> buf -> pos:pos -> 'a list -> pos]
-     is a type that is neither stronger nor weaker than the same type with local_
-     on the 'a and 'a list. If the compiler supports polymorphism over locality one day,
-     we may be able to only generate one version of the code, the local version. *)
+     @local function as an alias to the @local function. This only works for ground types,
+     as [(buf -> pos:pos -> 'a -> pos) -> buf -> pos:pos -> 'a list -> pos] is a type that
+     is neither stronger nor weaker than the same type with local_ on the 'a and 'a list.
+     If the compiler supports polymorphism over locality one day, we may be able to only
+     generate one version of the code, the local version. *)
   if List.for_all tds ~f:(fun td -> List.is_empty td.ptype_params)
   then
     Some
@@ -487,7 +491,7 @@ let alias_local_binding_if_possible
   else [ pstr_value ~loc rec_flag (bindings ~locality:None) ]
 ;;
 
-(* +-----------------------------------------------------------------+
+(*=+-----------------------------------------------------------------+
    | Generator for size computation of OCaml-values for bin_prot     |
    +-----------------------------------------------------------------+ *)
 
@@ -510,7 +514,8 @@ module Generate_bin_size = struct
     match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
     | Ptyp_constr (id, args) ->
       `Fun (bin_size_appl_fun full_type_name loc id args ~locality)
-    | Ptyp_tuple l -> bin_size_tuple full_type_name loc l ~locality
+    | Ptyp_tuple l -> bin_size_tuple ~unboxed:false full_type_name loc l ~locality
+    | Ptyp_unboxed_tuple l -> bin_size_tuple ~unboxed:true full_type_name loc l ~locality
     | Ptyp_var (parm, _) -> `Fun (evar ~loc (bin_size_arg parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf
@@ -601,8 +606,15 @@ module Generate_bin_size = struct
       ]
 
   (* Conversion of tuples *)
-  and bin_size_tuple full_type_name loc l ~locality =
-    let cnv_patts patts = Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc patts Closed in
+  and bin_size_tuple ~unboxed full_type_name loc l ~locality =
+    let cnv_patts patts =
+      (if unboxed
+       then Ppxlib_jane.Ast_builder.Default.ppat_unboxed_tuple
+       else Ppxlib_jane.Ast_builder.Default.ppat_tuple)
+        ~loc
+        patts
+        Closed
+    in
     let get_tp (_, tp) = tp in
     let mk_patt loc v_name (label, _) = label, pvar ~loc v_name in
     bin_size_tup_rec
@@ -866,7 +878,7 @@ module Generate_bin_size = struct
   ;;
 end
 
-(* +-----------------------------------------------------------------+
+(*=+-----------------------------------------------------------------+
    | Generator for converters of OCaml-values to the binary protocol |
    +-----------------------------------------------------------------+ *)
 
@@ -895,7 +907,10 @@ module Generate_bin_write = struct
     match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
     | Ptyp_constr (id, args) ->
       `Fun (bin_write_appl_fun full_type_name loc id args ~locality ~portable)
-    | Ptyp_tuple l -> bin_write_tuple full_type_name loc l ~locality ~portable
+    | Ptyp_tuple l ->
+      bin_write_tuple ~unboxed:false full_type_name loc l ~locality ~portable
+    | Ptyp_unboxed_tuple l ->
+      bin_write_tuple ~unboxed:true full_type_name loc l ~locality ~portable
     | Ptyp_var (parm, _) -> `Fun (evar ~loc (bin_write_arg parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf
@@ -995,8 +1010,15 @@ module Generate_bin_write = struct
     `Match [ case ~lhs:(cnv_patts patts) ~guard:None ~rhs:expr ]
 
   (* Conversion of tuples *)
-  and bin_write_tuple full_type_name loc l ~locality ~portable =
-    let cnv_patts patts = Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc patts Closed in
+  and bin_write_tuple ~unboxed full_type_name loc l ~locality ~portable =
+    let cnv_patts patts =
+      (if unboxed
+       then Ppxlib_jane.Ast_builder.Default.ppat_unboxed_tuple
+       else Ppxlib_jane.Ast_builder.Default.ppat_tuple)
+        ~loc
+        patts
+        Closed
+    in
     let get_tp (_, tp) = tp in
     let mk_patt loc v_name (label, _) = label, pvar ~loc v_name in
     bin_write_tup_rec
@@ -1385,7 +1407,7 @@ module Generate_bin_write = struct
   ;;
 end
 
-(* +-----------------------------------------------------------------+
+(*=+-----------------------------------------------------------------+
    | Generator for converters of binary protocol to OCaml-values     |
    +-----------------------------------------------------------------+ *)
 
@@ -1459,6 +1481,7 @@ module Generate_bin_read = struct
       let expr = bin_read_path_fun id.loc id args_expr in
       `Closed expr
     | Ptyp_tuple tps -> bin_read_tuple full_type_name loc tps
+    | Ptyp_unboxed_tuple tps -> bin_read_unboxed_tuple full_type_name loc tps
     | Ptyp_var (parm, _) -> `Closed (evar ~loc (conv_name parm))
     | Ptyp_arrow _ ->
       Location.raise_errorf ~loc "bin_read_arrow: cannot convert functions"
@@ -1474,18 +1497,29 @@ module Generate_bin_read = struct
   and bin_read_type_toplevel full_type_name ~full_type loc ty =
     bin_read_type_internal full_type_name ~full_type:(Some full_type) loc ty
 
+  (* Helper function for boxed and unboxed tuple reads *)
+  and bindings_and_exprs full_type_name loc alist =
+    let map i (label, tp) =
+      let v_name = "v" ^ Int.to_string (i + 1) in
+      let expr = get_open_expr loc (bin_read_type full_type_name loc tp) in
+      ( value_binding ~loc ~portable:false ~pat:(pvar ~loc v_name) ~expr
+      , (label, evar ~loc v_name) )
+    in
+    List.mapi alist ~f:map |> List.unzip
+
   (* Conversion of tuples *)
   and bin_read_tuple full_type_name loc alist =
-    let bindings, exprs =
-      let map i (label, tp) =
-        let v_name = "v" ^ Int.to_string (i + 1) in
-        let expr = get_open_expr loc (bin_read_type full_type_name loc tp) in
-        ( value_binding ~loc ~portable:false ~pat:(pvar ~loc v_name) ~expr
-        , (label, evar ~loc v_name) )
-      in
-      List.mapi alist ~f:map |> List.unzip
-    in
+    let bindings, exprs = bindings_and_exprs full_type_name loc alist in
     `Open (let_ins loc bindings (Ppxlib_jane.Ast_builder.Default.pexp_tuple ~loc exprs))
+
+  (* Conversion of unboxed tuples *)
+  and bin_read_unboxed_tuple full_type_name loc alist =
+    let bindings, exprs = bindings_and_exprs full_type_name loc alist in
+    `Open
+      (let_ins
+         loc
+         bindings
+         (Ppxlib_jane.Ast_builder.Default.pexp_unboxed_tuple ~loc exprs))
 
   (* Variant conversions *)
 
@@ -2249,33 +2283,33 @@ let () =
   |> Deriving.ignore
 ;;
 
-(* [ppx_bin_prot] is used in dotnet libraries to generate code that is compatible
-   with F#. OCaml and F# have largely overlapping syntaxes, but some minor differences
-   need to be taken into account:
+(* [ppx_bin_prot] is used in dotnet libraries to generate code that is compatible with F#.
+   OCaml and F# have largely overlapping syntaxes, but some minor differences need to be
+   taken into account:
 
    1. F# doesn't have labeled arguments so all labeled arguments are changed into not
-   labeled in [For_f_sharp.remove_labeled_arguments] below. This means we have to be
-   careful when writing the ppx code to generate arguments to functions in the correct
-   order (even if they are named) so that they are in the correct order for F# code after
-   names are removed.
+      labeled in [For_f_sharp.remove_labeled_arguments] below. This means we have to be
+      careful when writing the ppx code to generate arguments to functions in the correct
+      order (even if they are named) so that they are in the correct order for F# code
+      after names are removed.
 
    2. Accessing fields with a qualified path [record.M.field] doesn't work in F#, so we
-   use type-directed disambiguation everywhere instead. We also use type-directed
-   disambiguation for record construction.
+      use type-directed disambiguation everywhere instead. We also use type-directed
+      disambiguation for record construction.
 
    3. Universal quantifier annotations (e.g. [let f : 'a. ...]) are not supported in F#.
-   These are only necessary for polymorphic recursion, so we always avoid it when
-   [f_sharp_compatible = true]. In fact, when [f_sharp_compatible = true], we hide all
-   type parameters using an underscore, since they are not necessary for type-directed
-   disambiguation.
+      These are only necessary for polymorphic recursion, so we always avoid it when
+      [f_sharp_compatible = true]. In fact, when [f_sharp_compatible = true], we hide all
+      type parameters using an underscore, since they are not necessary for type-directed
+      disambiguation.
 
-   4. Type annotations on the pattern of [let rec] bindings are not supported in F#
-   (e.g. this doesn't work: [let rec (a : unit -> unit) = ...]), so whenever
-   [f_sharp_compatible = true], we put the type annotation as a constraint on the
-   expression rather than the pattern.
+   4. Type annotations on the pattern of [let rec] bindings are not supported in F# (e.g.
+      this doesn't work: [let rec (a : unit -> unit) = ...]), so whenever
+      [f_sharp_compatible = true], we put the type annotation as a constraint on the
+      expression rather than the pattern.
 
-   5. Refutation cases (e.g. [match x with | _ -> .]) are not supported in F#. We
-   replace them with [failwith "Unreachable"]. *)
+   5. Refutation cases (e.g. [match x with | _ -> .]) are not supported in F#. We replace
+      them with [failwith "Unreachable"]. *)
 module For_f_sharp = struct
   let remove_labeled_arguments =
     object
