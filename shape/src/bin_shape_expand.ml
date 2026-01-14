@@ -23,11 +23,12 @@ let curry_app_list ~loc (func : expression) (args : expression list) =
   List.fold_left args ~init:func ~f:(fun acc arg -> [%expr [%e acc] [%e arg]])
 ;;
 
-let bin_shape_ tname = "bin_shape_" ^ tname
+let bin_shape_ tname = "bin_shape_" ^ Ppx_helpers.mangle_unboxed tname
 let bin_shape_lid ~loc id = unapplied_type_constr_conv ~loc id ~f:bin_shape_
 
 let shape_tid ~loc ~(tname : string) =
-  [%expr Bin_prot.Shape.Tid.of_string [%e estring ~loc tname]]
+  [%expr
+    Bin_prot.Shape.Tid.of_string [%e estring ~loc (Ppx_helpers.mangle_unboxed tname)]]
 ;;
 
 let shape_vid ~loc ~(tvar : string) =
@@ -44,6 +45,10 @@ let shape_top_app ~loc ~(tname : string) =
 
 let shape_tuple ~loc (exps : expression list) =
   [%expr Bin_prot.Shape.tuple [%e elist ~loc exps]]
+;;
+
+let shape_unboxed_tuple ~loc (exps : expression list) =
+  [%expr Bin_prot.Shape.unboxed_tuple [%e elist ~loc exps]]
 ;;
 
 let shape_record ~loc (xs : (string * expression) list) =
@@ -150,6 +155,8 @@ let of_type
        | None -> curry_app_list ~loc (bin_shape_lid ~loc lid) args)
     | Ptyp_tuple labeled_typs ->
       shape_tuple ~loc (List.map labeled_typs ~f:(fun (_, typ) -> traverse typ))
+    | Ptyp_unboxed_tuple labeled_typs ->
+      shape_unboxed_tuple ~loc (List.map labeled_typs ~f:(fun (_, typ) -> traverse typ))
     | Ptyp_var (tvar, _) ->
       if allow_free_vars
       then
@@ -241,6 +248,7 @@ end = struct
              "basetype"
              (map ~f:string_literal (estring __) ||| map ~f:other_expression __)
         +> flag "hide_locations"
+        +> flag "unboxed"
         +> flag "portable")
       (fun ~loc
         ~path:_
@@ -249,7 +257,9 @@ end = struct
         annotation_provisionally_opt
         basetype_opt
         hide_loc
+        unboxed
         portable ->
+        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
         let tds = List.map tds ~f:name_type_params_in_td in
         let context =
           match rec_flag with
@@ -383,8 +393,11 @@ end = struct
 
   let gen =
     Deriving.Generator.make
-      Deriving.Args.(empty +> flag "portable")
-      (fun ~loc:_ ~path:_ (_rec_flag, tds) portable -> List.map tds ~f:(of_td ~portable))
+      Deriving.Args.(empty +> flag "unboxed" +> flag "portable")
+      (fun ~loc ~path:_ (_rec_flag, tds) unboxed portable ->
+        List.map
+          (Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds)
+          ~f:(of_td ~portable))
   ;;
 end
 

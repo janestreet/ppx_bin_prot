@@ -169,7 +169,7 @@ end = struct
   let bin_writer_t : 'a. 'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer =
     fun bin_writer_a ->
     { size = (fun v -> bin_size_t bin_writer_a.size v)
-    ; write = (fun v -> bin_write_t bin_writer_a.write v)
+    ; write = (fun buf ~pos v -> bin_write_t bin_writer_a.write buf ~pos v)
     }
   ;;
 
@@ -1113,7 +1113,7 @@ end = struct
         =
         fun bin_writer_a ->
         { size = (fun v -> bin_size_t bin_writer_a.size v)
-        ; write = (fun v -> bin_write_t bin_writer_a.write v)
+        ; write = (fun buf ~pos v -> bin_write_t bin_writer_a.write buf ~pos v)
         }
       ;;
 
@@ -1359,7 +1359,7 @@ end = struct
         =
         fun bin_writer_a ->
         { size = (fun v -> bin_size_t bin_writer_a.size v)
-        ; write = (fun v -> bin_write_t bin_writer_a.write v)
+        ; write = (fun buf ~pos v -> bin_write_t bin_writer_a.write buf ~pos v)
         }
       ;;
 
@@ -1601,7 +1601,7 @@ end = struct
         =
         fun bin_writer_a ->
         { size = (fun v -> bin_size_t bin_writer_a.size v)
-        ; write = (fun v -> bin_write_t bin_writer_a.write v)
+        ; write = (fun buf ~pos v -> bin_write_t bin_writer_a.write buf ~pos v)
         }
       ;;
 
@@ -1751,7 +1751,7 @@ end = struct
   let bin_writer_t : 'a. 'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer =
     fun bin_writer_a ->
     { size = (fun v -> bin_size_t bin_writer_a.size v)
-    ; write = (fun v -> bin_write_t bin_writer_a.write v)
+    ; write = (fun buf ~pos v -> bin_write_t bin_writer_a.write buf ~pos v)
     }
   ;;
 
@@ -1852,7 +1852,7 @@ end = struct
   let bin_writer_t : 'a. 'a Bin_prot.Type_class.writer -> 'a t Bin_prot.Type_class.writer =
     fun bin_writer_a ->
     { size = (fun v -> bin_size_t bin_writer_a.size v)
-    ; write = (fun v -> bin_write_t bin_writer_a.write v)
+    ; write = (fun buf ~pos v -> bin_write_t bin_writer_a.write buf ~pos v)
     }
   ;;
 

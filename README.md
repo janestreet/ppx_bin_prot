@@ -118,3 +118,34 @@ As well, the following extension points are available:
 ```
 
 No other values from this ppx currently support local allocations.
+
+## Implicit unboxed records
+
+To also derive `bin_io` on the implicit unboxed version of a record, add the
+`~unboxed` flag:
+
+```ocaml
+type t = { x : int; y : int } [@@deriving bin_io ~unboxed]
+```
+
+This generates the following additional functions:
+
+```ocaml
+val bin_t_u : t# Bin_prot.Type_class.t
+val bin_read_t_u : t# Bin_prot.Read.reader
+val __bin_read_t_u__ : (int -> t#) Bin_prot.Read.reader
+val bin_reader_t_u : t# Bin_prot.Type_class.reader
+val bin_size_t_u : t# Bin_prot.Size.sizer
+val bin_write_t_i : t# Bin_prot.Write.writer
+val bin_writer_t_u : t# Bin_prot.Type_class.writer
+val bin_shape_t : t# Bin_prot.Shape.t
+```
+
+If `~localize` is also added, the following additional functions are generated:
+
+```ocaml
+val bin_size_t__local : t# Bin_prot.Size.sizer__local
+val bin_write_t__local : t# Bin_prot.Write.writer__local
+```
+
+Implicit unboxed records are only available when using [OxCaml](https://oxcaml.org/).
