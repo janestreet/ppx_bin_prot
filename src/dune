@@ -4,6 +4,6 @@
  (kind ppx_deriver)
  (ppx_runtime_libraries bin_prot)
  (libraries base bin_shape_expand ocaml-compiler-libs.common
-   compiler-libs.common ppxlib ppxlib_jane)
+   compiler-libs.common ppx_helpers ppxlib ppxlib_jane)
  (preprocess
   (pps ppxlib.metaquot)))

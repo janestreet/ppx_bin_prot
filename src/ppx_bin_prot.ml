@@ -61,12 +61,14 @@ let value_binding ~loc ~pat ~expr ~portable =
 
 (* type_name is for types like Bin_prot.Size.sizer *)
 let type_name string ~locality =
+  let string = Ppx_helpers.mangle_unboxed string in
   match locality with
   | Some Local -> string ^ "__local"
   | None -> string
 ;;
 
 let value_name ~prefix ~locality string =
+  let string = Ppx_helpers.mangle_unboxed string in
   let suffix =
     match locality with
     | Some Local -> "__local"
@@ -115,7 +117,9 @@ end
 
 module Sig = struct
   let mk_sig_generator combinators ~with_localize =
-    let mk_sig ~ctxt:_ (_rf, tds) ~localize ~portable =
+    let mk_sig ~ctxt (_rf, tds) ~localize ~unboxed ~portable =
+      let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+      let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
       List.concat_map tds ~f:(fun td ->
         let td = name_type_params_in_td td in
         List.concat_map combinators ~f:(fun mk ->
@@ -123,13 +127,15 @@ module Sig = struct
     in
     match with_localize with
     | None ->
-      let flags = Deriving.Args.(empty +> flag "localize" +> flag "portable") in
-      Deriving.Generator.V2.make flags (fun ~ctxt tds localize portable ->
-        mk_sig ~ctxt tds ~localize ~portable)
+      let flags =
+        Deriving.Args.(empty +> flag "localize" +> flag "unboxed" +> flag "portable")
+      in
+      Deriving.Generator.V2.make flags (fun ~ctxt x localize unboxed portable ->
+        mk_sig ~ctxt x ~localize ~unboxed ~portable)
     | Some localize ->
-      let flags = Deriving.Args.(empty +> flag "portable") in
-      Deriving.Generator.V2.make flags (fun ~ctxt x portable ->
-        mk_sig ~ctxt x ~localize ~portable)
+      let flags = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
+      Deriving.Generator.V2.make flags (fun ~ctxt x unboxed portable ->
+        mk_sig ~ctxt x ~localize ~unboxed ~portable)
   ;;
 
   let mk_typ ~hide_params { Typ.arg_constr; result_constr } td =
@@ -248,13 +254,19 @@ module Sig = struct
   let mk_named ~with_localize =
     match with_localize with
     | None ->
-      let flags = Deriving.Args.(empty +> flag "localize" +> flag "portable") in
-      Deriving.Generator.V2.make flags (fun ~ctxt tds localize portable ->
-        mk_named_sig ~ctxt tds ~localize ~portable)
+      let flags =
+        Deriving.Args.(empty +> flag "localize" +> flag "unboxed" +> flag "portable")
+      in
+      Deriving.Generator.V2.make flags (fun ~ctxt (rf, tds) localize unboxed portable ->
+        let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        mk_named_sig ~ctxt (rf, tds) ~localize ~portable)
     | Some localize ->
-      let flags = Deriving.Args.(empty +> flag "portable") in
-      Deriving.Generator.V2.make flags (fun ~ctxt x portable ->
-        mk_named_sig ~ctxt x ~localize ~portable)
+      let flags = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
+      Deriving.Generator.V2.make flags (fun ~ctxt (rf, tds) unboxed portable ->
+        let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        mk_named_sig ~ctxt (rf, tds) ~localize ~portable)
   ;;
 
   let named = mk_named ~with_localize:None
@@ -391,12 +403,11 @@ let make_value
   value_binding ~loc ~pat ~expr ~portable
 ;;
 
-(* Determines whether or not the generated code associated with
-   a type declaration should include explicit type signatures.
+(* Determines whether or not the generated code associated with a type declaration should
+   include explicit type signatures.
 
-   In particular, we'd rather not add an explicit type signature when
-   polymorphic variants are involved.
-   As discussed in https://github.com/janestreet/ppx_bin_prot/pull/7
+   In particular, we'd rather not add an explicit type signature when polymorphic variants
+   are involved. As discussed in https://github.com/janestreet/ppx_bin_prot/pull/7
 
    However, if we have mutually recursive type declarations involving polymorphic type
    constructors where we add a type declaration to one of them, we need it on all of them,
@@ -1374,15 +1385,19 @@ module Generate_bin_write = struct
   ;;
 
   let gen =
-    let flags = Deriving.Args.(empty +> flag "localize" +> flag "portable") in
-    Deriving.Generator.make flags (fun ~loc ~path tds localize portable ->
-      bin_write ~f_sharp_compatible:false ~loc ~path tds ~localize ~portable)
+    let flags =
+      Deriving.Args.(empty +> flag "localize" +> flag "unboxed" +> flag "portable")
+    in
+    Deriving.Generator.make flags (fun ~loc ~path (rf, tds) localize unboxed portable ->
+      let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+      bin_write ~f_sharp_compatible:false ~loc ~path (rf, tds) ~localize ~portable)
   ;;
 
   let gen_local =
-    let flags = Deriving.Args.(empty +> flag "portable") in
-    Deriving.Generator.make flags (fun ~loc ~path tds portable ->
-      bin_write_local ~loc ~path tds ~portable)
+    let flags = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
+    Deriving.Generator.make flags (fun ~loc ~path (rf, tds) unboxed portable ->
+      let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+      bin_write_local ~loc ~path (rf, tds) ~portable)
   ;;
 
   let function_extension ~loc ~path:_ ty ~locality =
@@ -2007,7 +2022,8 @@ module Generate_bin_read = struct
   ;;
 
   (* Generate code from type definitions *)
-  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~portable ~util =
+  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~portable ~util ~unboxed =
+    let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
@@ -2034,9 +2050,9 @@ module Generate_bin_read = struct
 
   let gen =
     Deriving.Generator.make
-      Deriving.Args.(empty +> flag "portable" +> flag "util")
-      (fun ~loc ~path tds portable util ->
-        bin_read ~f_sharp_compatible:false ~loc ~path tds ~portable ~util)
+      Deriving.Args.(empty +> flag "portable" +> flag "util" +> flag "unboxed")
+      (fun ~loc ~path tds portable util unboxed ->
+        bin_read ~f_sharp_compatible:false ~loc ~path tds ~portable ~util ~unboxed)
   ;;
 
   let function_extension ~loc ~path:_ ty =
@@ -2160,8 +2176,10 @@ module Generate_tp_class = struct
   (* Add code generator to the set of known generators *)
   let gen =
     Deriving.Generator.make
-      Deriving.Args.(empty +> flag "portable")
-      (fun ~loc ~path tds portable -> bin_tp_class ~loc ~path tds ~portable)
+      Deriving.Args.(empty +> flag "unboxed" +> flag "portable")
+      (fun ~loc ~path (rf, tds) unboxed portable ->
+        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        bin_tp_class ~loc ~path (rf, tds) ~portable)
   ;;
 
   let extension ~loc ~hide_loc ~path ty =
@@ -2353,6 +2371,7 @@ module For_f_sharp = struct
         ~util
         tds
         ~portable:false
+        ~unboxed:false
     in
     remove_refutations#structure (remove_labeled_arguments#structure structure)
   ;;

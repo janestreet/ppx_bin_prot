@@ -498,7 +498,7 @@ module Blowup2 = struct
 end
 
 module Blowup3 = struct
-  (* Reverse the order of the decs...*)
+  (* Reverse the order of the decs... *)
   (* Still have exponential blowup in code size here *)
   type t4 = t3 * t3
   and t3 = t2 * t2
