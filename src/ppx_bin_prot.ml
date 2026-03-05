@@ -72,7 +72,14 @@ let bin_size_arg = value_name ~prefix:"_size_of_"
 let bin_write_arg = value_name ~prefix:"_write_"
 let conv_name = value_name ~prefix:"_of__"
 
-module Typ = struct
+type ctx = NoCtx
+         | DefaultCtx
+         | SpecifiedCtx of core_type
+let ctx_wrapper ctx = match ctx with
+  | None -> DefaultCtx
+  | Some c -> SpecifiedCtx c
+
+  module Typ = struct
   type t =
     { type_constr : string
     ; wrap_result : loc:Location.t -> core_type -> core_type
@@ -82,10 +89,11 @@ module Typ = struct
     { type_constr = type_name "Bin_prot.Read.reader" ~locality
     ; wrap_result = (fun ~loc t -> [%type: int -> [%t t]])
     }
-  ;;
 
   let create type_constr ~locality =
-    { type_constr = type_name type_constr ~locality; wrap_result = (fun ~loc:_ x -> x) }
+    { type_constr = type_name type_constr ~locality
+    ; wrap_result = (fun ~loc:_ x -> x)
+    }
   ;;
 end
 (* +-----------------------------------------------------------------+
@@ -93,29 +101,47 @@ end
    +-----------------------------------------------------------------+ *)
 
 module Sig = struct
-  let mk_sig_generator combinators ~with_localize =
-    let mk_sig ~ctxt:_ (_rf, tds) localize =
+  let mk_sig_generator combinators ~with_localize ~with_ctx =
+    let mk_sig ~ctxt:_ (_rf, tds) localize ~ctx_def =
       List.concat_map tds ~f:(fun td ->
         let td = name_type_params_in_td td in
-        List.concat_map combinators ~f:(fun mk -> Staged.unstage mk td ~localize))
+        List.concat_map combinators ~f:(fun mk -> Staged.unstage mk td ~localize ~ctx_def))
     in
-    if with_localize
-    then (
-      let flags = Deriving.Args.(empty +> flag "localize") in
-      Deriving.Generator.V2.make flags mk_sig)
-    else (
-      let flags = Deriving.Args.empty in
-      Deriving.Generator.V2.make flags (fun ~ctxt x -> mk_sig ~ctxt x false))
+    let localize_flag = Deriving.Args.flag "localize"
+    and ctx_flag = Deriving.Args.(arg "ctx" (pexp_constraint drop __))
+    in
+    match (with_localize, with_ctx) with 
+    | (false, false) ->
+        (*Hardcode: `localize` is false, `ctx` is `NoCtx`*)
+        Deriving.Generator.V2.make Deriving.Args.empty (fun ~ctxt x -> mk_sig ~ctxt x false ~ctx_def:NoCtx)
+    | (false, true) ->
+        Deriving.Generator.V2.make Deriving.Args.(
+          empty +> ctx_flag
+        ) (fun ~ctxt x ctx -> mk_sig ~ctxt x false ~ctx_def:(ctx_wrapper ctx))
+    | (true, false) ->
+        Deriving.Generator.V2.make Deriving.Args.(
+          empty +> localize_flag
+        ) (fun ~ctxt x localize -> mk_sig ~ctxt x localize ~ctx_def:NoCtx)
+    | (true, true) -> 
+        Deriving.Generator.V2.make Deriving.Args.(
+          empty +> localize_flag +> ctx_flag
+        ) (fun ~ctxt x localize ctx -> mk_sig ~ctxt x localize ~ctx_def:(ctx_wrapper ctx))
   ;;
 
-  let mk_typ ~hide_params { Typ.type_constr; wrap_result } td =
+  let mk_typ ~hide_params { Typ.type_constr; wrap_result } ~ctx_def td =
     let loc = td.ptype_loc in
     let id = Longident.parse type_constr in
+    let ctx_type ~loc = match ctx_def with
+    | NoCtx -> []
+    | DefaultCtx -> [ ptyp_var ~loc "ctx" ]
+    | SpecifiedCtx typ -> [ typ ]
+    in
     let wrap_type ~loc t =
       ptyp_constr
         ~loc
         (Located.mk ~loc id)
-        [ (if hide_params then ptyp_any ~loc:td.ptype_name.loc else t) ]
+        ([ (if hide_params then ptyp_any ~loc:td.ptype_name.loc else t) ]
+         @ ctx_type ~loc)
     in
     let result_type =
       wrap_type
@@ -128,11 +154,11 @@ module Sig = struct
   ;;
 
   let mk ~can_generate_local name_format type_constr =
-    Staged.stage (fun td ~localize:localize_requested ->
+    Staged.stage (fun td ~localize:localize_requested ~ctx_def ->
       let generate ~locality =
         let loc = td.ptype_loc in
         let name = Loc.map ~f:(name_format ~locality) td.ptype_name in
-        let typ = mk_typ ~hide_params:false (type_constr ~locality) td in
+        let typ = mk_typ ~hide_params:false (type_constr ~locality) ~ctx_def td in
         psig_value ~loc (value_description ~loc ~name ~type_:typ ~prim:[])
       in
       if can_generate_local && localize_requested
@@ -143,6 +169,7 @@ module Sig = struct
   let bin_write =
     mk_sig_generator
       ~with_localize:true
+      ~with_ctx:false
       [ mk bin_size_name (Typ.create "Bin_prot.Size.sizer") ~can_generate_local:true
       ; mk bin_write_name (Typ.create "Bin_prot.Write.writer") ~can_generate_local:true
       ; mk
@@ -155,6 +182,7 @@ module Sig = struct
   let bin_read =
     mk_sig_generator
       ~with_localize:false
+      ~with_ctx:true
       [ mk bin_read_name (Typ.create "Bin_prot.Read.reader") ~can_generate_local:false
       ; mk bin_vtag_read_name Typ.vtag_reader ~can_generate_local:false
       ; mk
@@ -167,6 +195,7 @@ module Sig = struct
   let bin_type_class =
     mk_sig_generator
       ~with_localize:false
+      ~with_ctx:true
       [ mk bin_name (Typ.create "Bin_prot.Type_class.t") ~can_generate_local:false ]
   ;;
 
@@ -288,11 +317,12 @@ end = struct
   ;;
 end
 
-let generate_poly_type ~loc constructor td =
+let generate_poly_type ~loc ~ctx_def constructor td =
+  let params = List.map td.ptype_params ~f:get_type_param_name in
   ptyp_poly
     ~loc
-    (List.map td.ptype_params ~f:get_type_param_name)
-    (Sig.mk_typ ~hide_params:false constructor td)
+    params
+    (Sig.mk_typ ~hide_params:false ~ctx_def constructor td)
 ;;
 
 let make_value
@@ -303,6 +333,7 @@ let make_value
   ~make_value_name
   ~make_arg_name
   ~body
+  ~ctx_def
   td
   =
   let vars = vars_of_params td ~f:make_arg_name ~locality in
@@ -310,8 +341,8 @@ let make_value
   let expr = eabstract ~loc (patts_of_vars vars) body in
   let constraint_ =
     if hide_params
-    then Sig.mk_typ ~hide_params (type_constr ~locality) td
-    else generate_poly_type ~loc (type_constr ~locality) td
+    then Sig.mk_typ ~hide_params ~ctx_def (type_constr ~locality) td
+    else generate_poly_type ~ctx_def ~loc (type_constr ~locality) td
   in
   let pat, expr =
     (* When [constraint_] has universally quantified type variables, we need to put the
@@ -787,6 +818,7 @@ module Generate_bin_size = struct
       ~make_value_name:bin_size_name
       ~make_arg_name:bin_size_arg
       ~body
+      ~ctx_def:NoCtx 
       td
   ;;
 
@@ -1176,6 +1208,7 @@ module Generate_bin_write = struct
       ~make_value_name:bin_write_name
       ~make_arg_name:bin_write_arg
       ~body
+      ~ctx_def:NoCtx 
       td
   ;;
 
@@ -1203,6 +1236,7 @@ module Generate_bin_write = struct
       ~make_value_name:bin_writer_name
       ~make_arg_name:bin_writer_name
       ~body
+      ~ctx_def:NoCtx 
       td
   ;;
 
@@ -1282,13 +1316,13 @@ module Generate_bin_read = struct
   let bin_read_path_fun loc id args = mk_abst_call { loc with loc_ghost = true } id args
 
   let get_closed_expr loc = function
-    | `Open expr -> [%expr fun buf ~pos_ref -> [%e expr]]
+    | `Open expr -> [%expr fun ~ctx buf ~pos_ref -> [%e expr]]
     | `Closed expr -> expr
   ;;
 
   let get_open_expr loc = function
     | `Open expr -> expr
-    | `Closed expr -> [%expr [%e expr] buf ~pos_ref]
+    | `Closed expr -> [%expr [%e expr] ~ctx buf ~pos_ref]
   ;;
 
   (* Conversion of arguments *)
@@ -1416,7 +1450,7 @@ module Generate_bin_read = struct
         | Rinherit ty ->
           let call =
             [%expr
-              ([%e mk_internal_call full_type_name ty.ptyp_loc ty] buf ~pos_ref vint
+              ([%e mk_internal_call full_type_name ty.ptyp_loc ty] ~ctx buf ~pos_ref vint
                 :> [%t full_type])]
           in
           let expr =
@@ -1442,7 +1476,7 @@ module Generate_bin_read = struct
       let full_type_name = full_type_name_or_anonymous full_type_name in
       `Open
         [%expr
-          let vint = Bin_prot.Read.bin_read_variant_int buf ~pos_ref in
+          let vint = Bin_prot.Read.bin_read_variant_int ~ctx buf ~pos_ref in
           try [%e code] with
           | Bin_prot.Common.No_variant_match ->
             Bin_prot.Common.raise_variant_wrong_type
@@ -1460,7 +1494,7 @@ module Generate_bin_read = struct
           ~pat:(pvar ~loc (conv_name parm.txt ~locality))
           ~expr:
             [%expr
-              fun _buf ~pos_ref ->
+              fun ~ctx:_ buf ~pos_ref ->
                 Bin_prot.Common.raise_read_error
                   (Bin_prot.Common.ReadError.Poly_rec_bound
                      [%e estring ~loc full_type_name])
@@ -1528,7 +1562,7 @@ module Generate_bin_read = struct
     `Open
       (pexp_match
          ~loc
-         [%expr [%e read_fun] buf ~pos_ref]
+         [%expr [%e read_fun] ~ctx buf ~pos_ref]
          (mcs
           @ [ case
                 ~lhs:(ppat_any ~loc)
@@ -1552,7 +1586,7 @@ module Generate_bin_read = struct
     let full_type_name = Full_type_name.get_exn ~loc full_type_name in
     `Closed
       [%expr
-        fun _buf ~pos_ref ->
+        fun ~ctx:_ _buf ~pos_ref ->
           Bin_prot.Common.raise_read_error
             (Bin_prot.Common.ReadError.Empty_type [%e estring ~loc full_type_name])
             !pos_ref]
@@ -1583,9 +1617,9 @@ module Generate_bin_read = struct
     let full_type_name = full_type_name_or_anonymous full_type_name in
     let vtag_read_expr = evar ~loc vtag_read_name in
     [%expr
-      fun buf ~pos_ref ->
-        let vint = Bin_prot.Read.bin_read_variant_int buf ~pos_ref in
-        try [%e eapply ~loc vtag_read_expr (exprs_of_vars args)] buf ~pos_ref vint with
+      fun ~ctx buf ~pos_ref ->
+        let vint = Bin_prot.Read.bin_read_variant_int ~ctx buf ~pos_ref in
+        try [%e eapply ~loc vtag_read_expr (exprs_of_vars args)] ~ctx buf ~pos_ref vint with
         | Bin_prot.Common.No_variant_match ->
           let err = Bin_prot.Common.ReadError.Variant [%e estring ~loc full_type_name] in
           Bin_prot.Common.raise_read_error err !pos_ref]
@@ -1622,7 +1656,7 @@ module Generate_bin_read = struct
   let variant_wrong_type ~loc full_type_name =
     let full_type_name = full_type_name_or_anonymous full_type_name in
     [%expr
-      fun _buf ~pos_ref _vint ->
+      fun ~ctx:_ _buf ~pos_ref _vint ->
         Bin_prot.Common.raise_variant_wrong_type [%e estring ~loc full_type_name] !pos_ref]
   ;;
 
@@ -1642,7 +1676,7 @@ module Generate_bin_read = struct
              ->
              let full_type_name = Full_type_name.get_exn ~loc full_type_name in
              [%expr
-               fun _buf ~pos_ref _vint ->
+               fun ~ctx:_ _buf ~pos_ref _vint ->
                  Bin_prot.Common.raise_read_error
                    (Bin_prot.Common.ReadError.Silly_type [%e estring ~loc full_type_name])
                    !pos_ref]
@@ -1653,7 +1687,7 @@ module Generate_bin_read = struct
              let cnv_expr = cnv expr in
              alias_or_fun
                cnv_expr
-               [%expr fun buf ~pos_ref vint -> [%e cnv_expr] buf ~pos_ref vint]
+               [%expr fun ~ctx buf ~pos_ref vint -> [%e cnv_expr] ~ctx buf ~pos_ref vint]
            | _ ->
              let s = Pprintast.string_of_expression e in
              Location.raise_errorf ~loc "ppx_bin_prot: impossible case: %s" s
@@ -1662,8 +1696,8 @@ module Generate_bin_read = struct
        | _ -> variant_wrong_type ~loc full_type_name)
     | Polymorphic_variant { all_atoms } ->
       (match oc_body with
-       | `Open body when all_atoms -> [%expr fun _buf ~pos_ref:_ vint -> [%e body]]
-       | `Open body -> [%expr fun buf ~pos_ref vint -> [%e body]]
+       | `Open body when all_atoms -> [%expr fun ~ctx:_ _buf ~pos_ref:_ vint -> [%e body]]
+       | `Open body -> [%expr fun ~ctx buf ~pos_ref vint -> [%e body]]
        | _ -> assert false (* impossible *))
     | Other -> variant_wrong_type ~loc full_type_name
   ;;
@@ -1687,8 +1721,8 @@ module Generate_bin_read = struct
         | Alias_but_not_polymorphic_variant | Other ->
           (match oc_body with
            | `Closed expr ->
-             alias_or_fun expr [%expr fun buf ~pos_ref -> [%e expr] buf ~pos_ref]
-           | `Open body -> [%expr fun buf ~pos_ref -> [%e body]])
+             alias_or_fun expr [%expr fun ~ctx buf ~pos_ref -> [%e expr] ~ctx buf ~pos_ref]
+           | `Open body -> [%expr fun ~ctx buf ~pos_ref -> [%e body]])
       in
       let pat = pvar ~loc read_name in
       let pat_with_type =
@@ -1724,7 +1758,12 @@ module Generate_bin_read = struct
     [%expr { read = [%e read]; vtag_read = [%e vtag_read] }]
   ;;
 
-  let bin_read_td ~should_omit_type_params ~loc:_ ~path td =
+  (** Auxiliary function: take a type definition, return
+  - vtag read bindings
+  - read bindings
+  - reader (typeclass) bindings
+  *)
+  let bin_read_td ~should_omit_type_params ~loc:_ ~path ~ctx_def td =
     let full_type_name = Full_type_name.make ~path td in
     let loc = td.ptype_loc in
     let oc_body = reader_body_of_td td full_type_name in
@@ -1738,8 +1777,8 @@ module Generate_bin_read = struct
       if should_omit_type_params
       then None, None
       else
-        ( Some (generate_poly_type ~loc (Typ.vtag_reader ~locality) td)
-        , Some (generate_poly_type ~loc (Typ.create "Bin_prot.Read.reader" ~locality) td)
+        ( Some (generate_poly_type ~ctx_def ~loc (Typ.vtag_reader ~locality) td)
+        , Some (generate_poly_type ~ctx_def ~loc (Typ.create "Bin_prot.Read.reader" ~locality) td)
         )
     in
     let read_binding, vtag_read_binding =
@@ -1758,11 +1797,11 @@ module Generate_bin_read = struct
     let vars = vars_of_params td ~f:bin_reader_name ~locality in
     let read =
       let call = project_vars (evar ~loc read_name) vars ~field_name:"read" in
-      alias_or_fun call [%expr fun buf ~pos_ref -> [%e call] buf ~pos_ref]
+      alias_or_fun call [%expr fun ~ctx buf ~pos_ref -> [%e call] ~ctx buf ~pos_ref]
     in
     let vtag_read =
       let call = project_vars (evar ~loc vtag_read_name) vars ~field_name:"read" in
-      alias_or_fun call [%expr fun buf ~pos_ref vtag -> [%e call] buf ~pos_ref vtag]
+      alias_or_fun call [%expr fun ~ctx buf ~pos_ref vtag -> [%e call] ~ctx buf ~pos_ref vtag]
     in
     let reader_binding =
       let body = reader_type_class_record ~loc ~read ~vtag_read in
@@ -1774,13 +1813,14 @@ module Generate_bin_read = struct
         ~make_value_name:bin_reader_name
         ~make_arg_name:bin_reader_name
         ~body
+        ~ctx_def
         td
     in
     vtag_read_binding, (read_binding, reader_binding)
   ;;
 
   (* Generate code from type definitions *)
-  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) =
+  let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~ctx_def =
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     (match rec_flag, tds with
@@ -1792,7 +1832,7 @@ module Generate_bin_read = struct
      | _ -> ());
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
     let vtag_read_bindings, read_and_reader_bindings =
-      List.map tds ~f:(bin_read_td ~should_omit_type_params ~loc ~path) |> List.unzip
+      List.map tds ~f:(bin_read_td ~should_omit_type_params ~loc ~path ~ctx_def) |> List.unzip
     in
     let read_bindings, reader_bindings = List.unzip read_and_reader_bindings in
     let defs =
@@ -1806,7 +1846,8 @@ module Generate_bin_read = struct
   ;;
 
   let gen =
-    Deriving.Generator.make Deriving.Args.empty (bin_read ~f_sharp_compatible:false)
+    Deriving.Generator.make (Deriving.Args.(empty +> arg "ctx" (pexp_constraint drop __)))
+       (fun ~loc ~path rec_tds ctx_arg -> bin_read ~f_sharp_compatible:false rec_tds ~loc ~path ~ctx_def:(ctx_wrapper ctx_arg))
   ;;
 
   let function_extension ~loc ~path:_ ty =
@@ -1912,6 +1953,7 @@ module Generate_tp_class = struct
       ~make_value_name:bin_name
       ~make_arg_name:bin_name
       ~body
+      ~ctx_def:NoCtx 
       td
   ;;
 
@@ -2066,7 +2108,7 @@ module For_f_sharp = struct
 
   let bin_read ~loc ~path (rec_flag, tds) =
     let structure =
-      Generate_bin_read.bin_read ~f_sharp_compatible:true ~loc ~path (rec_flag, tds)
+      Generate_bin_read.bin_read ~f_sharp_compatible:true ~ctx_def:DefaultCtx ~loc ~path (rec_flag, tds)
     in
     remove_labeled_arguments#structure structure
   ;;

@@ -28,9 +28,9 @@ instead of:
 
 ```ocaml
 val bin_t : 'a Bin_prot.Type_class.t ‑> 'a t Bin_prot.Type_class.t
-val bin_read_t : 'a Bin_prot.Read.reader ‑> 'a t Bin_prot.Read.reader
-val __bin_read_t__ : 'a Bin_prot.Read.reader ‑> (int ‑> 'a t) Bin_prot.Read.reader
-val bin_reader_t : 'a Bin_prot.Type_class.reader ‑> 'a t Bin_prot.Type_class.reader
+val bin_read_t : ('a, 'ctx) Bin_prot.Read.reader ‑> ('a t, 'ctx) Bin_prot.Read.reader
+val __bin_read_t__ : ('a, 'ctx) Bin_prot.Read.reader ‑> (int ‑> 'a t, 'ctx) Bin_prot.Read.reader
+val bin_reader_t : ('a, 'ctx) Bin_prot.Type_class.reader ‑> ('a t, 'ctx) Bin_prot.Type_class.reader
 val bin_size_t : 'a Bin_prot.Size.sizer ‑> 'a t Bin_prot.Size.sizer
 val bin_write_t : 'a Bin_prot.Write.writer ‑> 'a t Bin_prot.Write.writer
 val bin_writer_t : 'a Bin_prot.Type_class.writer ‑> 'a t Bin_prot.Type_class.writer

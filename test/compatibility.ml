@@ -103,7 +103,7 @@ module Common = struct
     let els = Array.create ~len:10 el in
     let buf = bin_dump ~header:true bin_els.writer els in
     let pos_ref = ref 0 in
-    let els_len = Read.bin_read_int_64bit buf ~pos_ref in
+    let els_len = Read.bin_read_int_64bit ~ctx:() buf ~pos_ref in
     Expect_test_helpers_base.require_equal
       [%here]
       (module Int)
@@ -116,7 +116,7 @@ module Common = struct
       ~message:"els_len disagrees with bin_size"
       els_len
       (bin_size_els els);
-    let new_els = bin_read_els buf ~pos_ref in
+    let new_els = bin_read_els ~ctx:() buf ~pos_ref in
     Expect_test_helpers_base.require_equal
       [%here]
       (module struct
@@ -167,7 +167,7 @@ let%test_module "Inline" =
           (bin_dump inline_tc.writer x);
         let val_and_len reader =
           let pos_ref = ref 0 in
-          let x = reader.read buf ~pos_ref in
+          let x = reader.read ~ctx:() buf ~pos_ref in
           x, !pos_ref
         in
         let _, len = val_and_len derived_tc.reader in
@@ -345,7 +345,7 @@ let%test_module "Local" =
                }
                x)
             buf;
-          let x' = M.bin_read_t buf ~pos_ref:(ref 0) in
+          let x' = M.bin_read_t ~ctx:() buf ~pos_ref:(ref 0) in
           Expect_test_helpers_base.require_equal
             [%here]
             (module M)

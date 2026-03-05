@@ -19,8 +19,8 @@ module _ = struct
   let _ = [%bin_size: t]
   let _ = [%bin_write: t]
   let _ = [%bin_writer: t]
-  let (_ : t Bin_prot.Read.reader) = [%bin_read: t]
-  let (_ : t Bin_prot.Type_class.reader) = [%bin_reader: t]
+  let (_ : (t, _) Bin_prot.Read.reader) = [%bin_read: t]
+  let (_ : (t, _) Bin_prot.Type_class.reader) = [%bin_reader: t]
   let _ = [%bin_type_class: t]
 end
 
@@ -38,8 +38,8 @@ module _ = struct
   let _ = [%bin_size: [ `A | `B of int ]]
   let _ = [%bin_write: [ `A | `B of int ]]
   let _ = [%bin_writer: [ `A | `B of int ]]
-  let (_ : t Bin_prot.Read.reader) = [%bin_read: [ `A | `B of int ]]
-  let (_ : t Bin_prot.Type_class.reader) = [%bin_reader: [ `A | `B of int ]]
+  let (_ : (t, _) Bin_prot.Read.reader) = [%bin_read: [ `A | `B of int ]]
+  let (_ : (t, _) Bin_prot.Type_class.reader) = [%bin_reader: [ `A | `B of int ]]
   let _ = [%bin_type_class: [ `A | `B of int ]]
 end
 
@@ -87,7 +87,7 @@ let test
               (written_size : int)
               ~written:(Bigstring.sub message ~pos:0 ~len:written_size : Bigstring.t)];
       let pos_ref = ref 0 in
-      let round_trip = bin_read message ~pos_ref in
+      let round_trip = bin_read ~ctx:() message ~pos_ref in
       let read_size = !pos_ref in
       require
         [%here]

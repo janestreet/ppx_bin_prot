@@ -4,6 +4,9 @@ module type S = sig
   type t [@@deriving bin_io ~localize]
 end
 
+module type S_with_ctx = sig
+end
+
 module type S1 = sig
   type 'a t [@@deriving bin_io ~localize]
 end

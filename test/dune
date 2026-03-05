@@ -1,5 +1,6 @@
 (library
  (name ppx_bin_prot_tests)
- (libraries core expect_test_helpers_core)
+ (libraries bin_prot core expect_test_helpers_core)
+ (inline_tests (flags (:standard -drop-tag js-only -drop-tag 32-bits-only)))
  (preprocess
-  (pps ppx_jane)))
+  (pps ppx_jane ppx_bin_prot)))

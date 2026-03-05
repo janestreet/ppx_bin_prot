@@ -5,7 +5,7 @@ let write_bin_prot writer buf ~pos a =
   assert (writer.Bin_prot.Type_class.write buf ~pos a = pos + len)
 ;;
 
-let read_bin_prot reader buf ~pos_ref = reader.Bin_prot.Type_class.read buf ~pos_ref
+let read_bin_prot reader buf ~pos_ref = reader.Bin_prot.Type_class.read ~ctx:() buf ~pos_ref
 let pos_ref = ref 0
 let one = if Random.bool () then 1.0 else 1.0
 let pi = if Random.bool () then 3.141597 else 3.141597
