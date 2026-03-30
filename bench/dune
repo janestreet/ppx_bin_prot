@@ -3,4 +3,4 @@
  (libraries bin_prot core)
  (modules ppx_bin_prot_bench)
  (preprocess
-  (pps ppx_jane)))
+  (pps ppx_jane -compare-require-explicit-locality)))

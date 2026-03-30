@@ -119,7 +119,7 @@ module Sig = struct
   let mk_sig_generator combinators ~with_localize =
     let mk_sig ~ctxt (_rf, tds) ~localize ~unboxed ~portable =
       let loc = Expansion_context.Deriver.derived_item_loc ctxt in
-      let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+      let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
       List.concat_map tds ~f:(fun td ->
         let td = name_type_params_in_td td in
         List.concat_map combinators ~f:(fun mk ->
@@ -259,13 +259,13 @@ module Sig = struct
       in
       Deriving.Generator.V2.make flags (fun ~ctxt (rf, tds) localize unboxed portable ->
         let loc = Expansion_context.Deriver.derived_item_loc ctxt in
-        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
         mk_named_sig ~ctxt (rf, tds) ~localize ~portable)
     | Some localize ->
       let flags = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
       Deriving.Generator.V2.make flags (fun ~ctxt (rf, tds) unboxed portable ->
         let loc = Expansion_context.Deriver.derived_item_loc ctxt in
-        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
         mk_named_sig ~ctxt (rf, tds) ~localize ~portable)
   ;;
 
@@ -1389,14 +1389,14 @@ module Generate_bin_write = struct
       Deriving.Args.(empty +> flag "localize" +> flag "unboxed" +> flag "portable")
     in
     Deriving.Generator.make flags (fun ~loc ~path (rf, tds) localize unboxed portable ->
-      let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+      let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
       bin_write ~f_sharp_compatible:false ~loc ~path (rf, tds) ~localize ~portable)
   ;;
 
   let gen_local =
     let flags = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
     Deriving.Generator.make flags (fun ~loc ~path (rf, tds) unboxed portable ->
-      let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+      let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
       bin_write_local ~loc ~path (rf, tds) ~portable)
   ;;
 
@@ -2023,7 +2023,7 @@ module Generate_bin_read = struct
 
   (* Generate code from type definitions *)
   let bin_read ~f_sharp_compatible ~loc ~path (rec_flag, tds) ~portable ~util ~unboxed =
-    let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+    let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag = really_recursive rec_flag tds in
     let should_omit_type_params = should_omit_type_params ~f_sharp_compatible tds in
@@ -2178,7 +2178,7 @@ module Generate_tp_class = struct
     Deriving.Generator.make
       Deriving.Args.(empty +> flag "unboxed" +> flag "portable")
       (fun ~loc ~path (rf, tds) unboxed portable ->
-        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
         bin_tp_class ~loc ~path (rf, tds) ~portable)
   ;;
 

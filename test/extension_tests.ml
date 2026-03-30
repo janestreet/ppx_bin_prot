@@ -49,8 +49,8 @@ open Base_quickcheck.Export
 open Bin_prot.Std
 module Bigstring = Base_bigstring
 
-module type S = sig
-  type t [@@deriving equal, quickcheck, sexp_of]
+module type%template [@mode m = (local, global)] S = sig
+  type t [@@deriving (equal [@mode.explicit m]), quickcheck, sexp_of]
 end
 
 (* Testing [%bin_size{,_local}], [%bin_write{,_local}], and [%bin_read] extension points
@@ -118,7 +118,7 @@ let%expect_test _ =
     [%bin_write_local: int]
     [%bin_read: int]
     (module struct
-      type t = int [@@deriving equal, quickcheck, sexp_of]
+      type t = int [@@deriving equal ~localize, quickcheck, sexp_of]
     end);
   [%expect {| |}]
 ;;
@@ -131,14 +131,15 @@ let%expect_test _ =
     [%bin_write_local: string list]
     [%bin_read: string list]
     (module struct
-      type t = string list [@@deriving equal, quickcheck, sexp_of]
+      type t = string list [@@deriving equal ~localize, quickcheck, sexp_of]
     end);
   [%expect {| |}]
 ;;
 
 let%expect_test _ =
   let open struct
-    type c = [ `C of string ] [@@deriving bin_io ~localize, equal, quickcheck, sexp_of]
+    type c = [ `C of string ]
+    [@@deriving bin_io ~localize, equal ~localize, quickcheck, sexp_of]
   end in
   test
     [%bin_size: [ `A | `B of int | c ]]
@@ -152,7 +153,7 @@ let%expect_test _ =
         | `B of int
         | c
         ]
-      [@@deriving equal, quickcheck, sexp_of]
+      [@@deriving equal ~localize, quickcheck, sexp_of]
     end);
   [%expect {| |}]
 ;;
