@@ -259,7 +259,7 @@ end = struct
         hide_loc
         unboxed
         portable ->
-        let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+        let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
         let tds = List.map tds ~f:name_type_params_in_td in
         let context =
           match rec_flag with
@@ -396,7 +396,7 @@ end = struct
       Deriving.Args.(empty +> flag "unboxed" +> flag "portable")
       (fun ~loc ~path:_ (_rec_flag, tds) unboxed portable ->
         List.map
-          (Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds)
+          (Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds)
           ~f:(of_td ~portable))
   ;;
 end

@@ -8,7 +8,7 @@ open Type_class
 open Bin_prot.Std
 
 module Array1_extras (M : sig
-    type t [@@deriving equal, sexp_of]
+    type t [@@deriving equal ~localize, sexp_of]
   end) =
 struct
   let to_list : type a b c. (a, b, c) Array1.t -> a list =
@@ -27,17 +27,17 @@ end
 
 module Common = struct
   type tuple = float * string * int64
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a record =
     { a : int
     ; b : 'a
     ; c : 'a option
     }
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a singleton_record = { y : 'a }
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a inline_record =
     | IR of
@@ -46,50 +46,57 @@ module Common = struct
         ; ir_c : 'a option
         }
     | Other of int
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a sum =
     | Foo
     | Bar of int
     | Bla of 'a * string
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a variant =
     [ `Foo
     | `Bar of int
     | `Bla of 'a * string
     ]
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type variant_extension =
     [ float variant
     | `Baz of int * float
     ]
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a poly_app =
     (tuple * int singleton_record * 'a record * 'a inline_record) variant sum list
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   type 'a rec_t1 = RecFoo1 of 'a rec_t2
 
   and 'a rec_t2 =
     | RecFoo2 of 'a poly_app * 'a rec_t1
     | RecNone
-  [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
-  type 'a poly_id = 'a rec_t1 [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
-  type el = float poly_id [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
-  type els = el array [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+  type 'a poly_id = 'a rec_t1
+  [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
+
+  type el = float poly_id [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
+  type els = el array [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
   module Wildcard : sig
-    type _ transparent = int [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
-    type _ opaque [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+    type _ transparent = int
+    [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
+
+    type _ opaque [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
     val opaque_examples : int opaque list
   end = struct
-    type _ transparent = int [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
-    type 'a opaque = 'a option [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+    type _ transparent = int
+    [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
+
+    type 'a opaque = 'a option
+    [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
 
     let opaque_examples = [ None; Some 0; Some 1 ]
   end
@@ -121,7 +128,7 @@ module Common = struct
     let new_els = bin_read_els buf ~pos_ref in
     Expect_test_helpers_base.require_equal
       (module struct
-        type t = float poly_id Array.t [@@deriving equal, sexp_of]
+        type t = float poly_id Array.t [@@deriving equal ~localize, sexp_of]
       end)
       ~message:"new_els and els not equal"
       els
@@ -194,7 +201,7 @@ module%test Inline = struct
   let%expect_test "simple tuple" =
     check_compatible
       (module struct
-        type t = Common.tuple [@@deriving equal, sexp_of]
+        type t = Common.tuple [@@deriving equal ~localize, sexp_of]
       end)
       [ 50.5, "hello", 1234L ]
       Common.bin_tuple
@@ -206,7 +213,7 @@ module%test Inline = struct
   let%expect_test "redefine tuple" =
     check_compatible
       (module struct
-        type t = Common.tuple [@@deriving equal, sexp_of]
+        type t = Common.tuple [@@deriving equal ~localize, sexp_of]
       end)
       [ 50.5, "hello", 1234L ]
       Common.bin_tuple
@@ -218,7 +225,7 @@ module%test Inline = struct
   let%expect_test "simple variant" =
     check_compatible
       (module struct
-        type t = float Common.variant [@@deriving equal, sexp_of]
+        type t = float Common.variant [@@deriving equal ~localize, sexp_of]
       end)
       [ `Foo; `Bar 8; `Bla (33.3, "world") ]
       (Common.bin_variant bin_float)
@@ -235,7 +242,7 @@ module%test Inline = struct
           | `Bar of int
           | `Bla of float * string
           ]
-        [@@deriving equal, sexp_of]
+        [@@deriving equal ~localize, sexp_of]
       end)
       [ `Foo; `Bar 8; `Bla (33.3, "world") ]
       (Common.bin_variant bin_float)
@@ -251,7 +258,7 @@ module%test Inline = struct
           [ float Common.variant
           | `Baz of int * float
           ]
-        [@@deriving equal, sexp_of]
+        [@@deriving equal ~localize, sexp_of]
       end)
       [ `Foo; `Bar 8; `Bla (33.3, "world"); `Baz (17, 17.71) ]
       Common.bin_variant_extension
@@ -264,7 +271,7 @@ module%test Inline = struct
     check_compatible
       (module struct
         type t = [ `Foo | `Bar of int | `Bla of int * string ] Common.singleton_record
-        [@@deriving equal, sexp_of]
+        [@@deriving equal ~localize, sexp_of]
       end)
       [ { Common.y = `Foo }; { y = `Bar 42 }; { y = `Bla (42, "world") } ]
       (Common.bin_singleton_record (Common.bin_variant bin_int))
@@ -277,7 +284,7 @@ module%test Inline = struct
   let%expect_test "transparent wildcard" =
     check_compatible
       (module struct
-        type t = string Common.Wildcard.transparent [@@deriving equal, sexp_of]
+        type t = string Common.Wildcard.transparent [@@deriving equal ~localize, sexp_of]
       end)
       [ 1; 2; 3 ]
       (Common.Wildcard.bin_transparent bin_string)
@@ -289,7 +296,7 @@ module%test Inline = struct
   let%expect_test "opaque wildcard" =
     check_compatible
       (module struct
-        type t = int Common.Wildcard.opaque [@@deriving equal, sexp_of]
+        type t = int Common.Wildcard.opaque [@@deriving equal ~localize, sexp_of]
       end)
       Common.Wildcard.opaque_examples
       (Common.Wildcard.bin_opaque bin_int)
@@ -342,7 +349,8 @@ module%test Local = struct
   let%expect_test "tuple" =
     check_compatible
       (module struct
-        type t = Common.tuple [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        type t = Common.tuple
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       [ 1., "hi", 2L; Float.infinity, "", 0L ]
   ;;
@@ -351,7 +359,7 @@ module%test Local = struct
     check_compatible
       (module struct
         type t = float Common.variant
-        [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       [ `Foo; `Bar 8; `Bla (33.3, "world") ]
   ;;
@@ -360,7 +368,7 @@ module%test Local = struct
     check_compatible
       (module struct
         type t = Common.variant_extension
-        [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       [ `Foo; `Bar 8; `Bla (33.3, "world"); `Baz (17, 17.71) ]
   ;;
@@ -369,7 +377,7 @@ module%test Local = struct
     check_compatible
       (module struct
         type t = int Common.variant Common.singleton_record
-        [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       [ { Common.y = `Foo }; { y = `Bar 42 }; { y = `Bla (42, "world") } ]
   ;;
@@ -378,7 +386,7 @@ module%test Local = struct
     check_compatible
       (module struct
         type t = string Common.Wildcard.transparent
-        [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       [ 1; 2; 3 ]
   ;;
@@ -387,7 +395,7 @@ module%test Local = struct
     check_compatible
       (module struct
         type t = int Common.Wildcard.opaque
-        [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       Common.Wildcard.opaque_examples
   ;;
@@ -406,7 +414,8 @@ module%test Local = struct
     let els = Array.create ~len:10 el in
     check_compatible
       (module struct
-        type t = Common.els [@@deriving bin_io ~localize, bin_io, equal, sexp_of]
+        type t = Common.els
+        [@@deriving bin_io ~localize, bin_io, equal ~localize, sexp_of]
       end)
       [ els ]
   ;;
