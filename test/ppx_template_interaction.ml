@@ -198,22 +198,16 @@ let _ = __bin_read_t__
 and _ = __bin_read_t__word__
 
 let bin_read_t : t Bin_prot.Read.reader =
-  fun buf ~pos_ref ->
-  (fun _buf ~pos_ref ->
-    Bin_prot.Common.raise_read_error
-      (Bin_prot.Common.ReadError.Empty_type "ppx_template_interaction.ml.t")
-      !pos_ref)
-    buf
-    ~pos_ref
+  fun _buf ~pos_ref ->
+  Bin_prot.Common.raise_read_error
+    (Bin_prot.Common.ReadError.Empty_type "ppx_template_interaction.ml.t")
+    !pos_ref
 
 and bin_read_t__word : t__word Bin_prot.Read.reader =
-  fun buf ~pos_ref ->
-  (fun _buf ~pos_ref ->
-    Bin_prot.Common.raise_read_error
-      (Bin_prot.Common.ReadError.Empty_type "ppx_template_interaction.ml.t__word")
-      !pos_ref)
-    buf
-    ~pos_ref
+  fun _buf ~pos_ref ->
+  Bin_prot.Common.raise_read_error
+    (Bin_prot.Common.ReadError.Empty_type "ppx_template_interaction.ml.t__word")
+    !pos_ref
 ;;
 
 let _ = bin_read_t
