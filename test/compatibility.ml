@@ -419,4 +419,16 @@ module%test Local = struct
       end)
       [ els ]
   ;;
+
+  let%expect_test "all-immediate variant" =
+    let module M = struct
+      type t =
+        | Foo
+        | Bar
+        | Baz
+      [@@deriving bin_io ~localize, bin_io, enumerate, equal ~localize, sexp_of]
+    end
+    in
+    check_compatible (module M) M.all
+  ;;
 end

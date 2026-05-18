@@ -305,19 +305,14 @@ end = struct
   let _ = bin_shape_t
 
   let bin_size_t : t Bin_prot.Size.sizer =
-    fun v ->
-    (fun _v -> raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t")) v
+    fun _v -> raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t")
   ;;
 
   let _ = bin_size_t
 
   let bin_write_t : t Bin_prot.Write.writer =
-    fun buf ~pos v ->
-    (fun _buf ~pos:_ _v ->
-      raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t"))
-      buf
-      ~pos
-      v
+    fun _buf ~pos:_ _v ->
+    raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t")
   ;;
 
   let _ = bin_write_t
@@ -341,13 +336,10 @@ end = struct
   let _ = __bin_read_t__
 
   let bin_read_t : t Bin_prot.Read.reader =
-    fun buf ~pos_ref ->
-    (fun _buf ~pos_ref ->
-      Bin_prot.Common.raise_read_error
-        (Bin_prot.Common.ReadError.Empty_type "deriving_inline.ml.Empty_variant.t")
-        !pos_ref)
-      buf
-      ~pos_ref
+    fun _buf ~pos_ref ->
+    Bin_prot.Common.raise_read_error
+      (Bin_prot.Common.ReadError.Empty_type "deriving_inline.ml.Empty_variant.t")
+      !pos_ref
   ;;
 
   let _ = bin_read_t
@@ -378,8 +370,7 @@ end = struct
   let _ = bin_shape_t
 
   let bin_size_t__local : t Bin_prot.Size.sizer__local =
-    fun v ->
-    (fun _v -> raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t")) v
+    fun _v -> raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t")
   ;;
 
   let _ = bin_size_t__local
@@ -387,12 +378,8 @@ end = struct
   let _ = bin_size_t
 
   let bin_write_t__local : t Bin_prot.Write.writer__local =
-    fun buf ~pos v ->
-    (fun _buf ~pos:_ _v ->
-      raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t"))
-      buf
-      ~pos
-      v
+    fun _buf ~pos:_ _v ->
+    raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_variant.t")
   ;;
 
   let _ = bin_write_t__local
@@ -418,13 +405,10 @@ end = struct
   let _ = __bin_read_t__
 
   let bin_read_t : t Bin_prot.Read.reader =
-    fun buf ~pos_ref ->
-    (fun _buf ~pos_ref ->
-      Bin_prot.Common.raise_read_error
-        (Bin_prot.Common.ReadError.Empty_type "deriving_inline.ml.Empty_variant.t")
-        !pos_ref)
-      buf
-      ~pos_ref
+    fun _buf ~pos_ref ->
+    Bin_prot.Common.raise_read_error
+      (Bin_prot.Common.ReadError.Empty_type "deriving_inline.ml.Empty_variant.t")
+      !pos_ref
   ;;
 
   let _ = bin_read_t
@@ -466,12 +450,12 @@ end = struct
     let _group =
       Bin_prot.Shape.group
         (Bin_prot.Shape.Location.of_string
-           "ppx/ppx_bin_prot/test/deriving_inline.ml:461:2")
+           "ppx/ppx_bin_prot/test/deriving_inline.ml:445:2")
         [ ( Bin_prot.Shape.Tid.of_string "t"
           , []
           , Bin_prot.Shape.poly_variant
               (Bin_prot.Shape.Location.of_string
-                 "ppx/ppx_bin_prot/test/deriving_inline.ml:461:19")
+                 "ppx/ppx_bin_prot/test/deriving_inline.ml:445:19")
               [] )
         ]
     in
@@ -481,24 +465,16 @@ end = struct
   let _ = bin_shape_t
 
   let bin_size_t =
-    (fun v ->
-       (fun _v ->
-         raise
-           (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t"))
-         v
+    (fun _v ->
+       raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t")
      : _ Bin_prot.Size.sizer)
   ;;
 
   let _ = bin_size_t
 
   let bin_write_t =
-    (fun buf ~pos v ->
-       (fun _buf ~pos:_ _v ->
-         raise
-           (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t"))
-         buf
-         ~pos
-         v
+    (fun _buf ~pos:_ _v ->
+       raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t")
      : _ Bin_prot.Write.writer)
   ;;
 
@@ -548,12 +524,12 @@ end = struct
     let _group =
       Bin_prot.Shape.group
         (Bin_prot.Shape.Location.of_string
-           "ppx/ppx_bin_prot/test/deriving_inline.ml:461:2")
+           "ppx/ppx_bin_prot/test/deriving_inline.ml:445:2")
         [ ( Bin_prot.Shape.Tid.of_string "t"
           , []
           , Bin_prot.Shape.poly_variant
               (Bin_prot.Shape.Location.of_string
-                 "ppx/ppx_bin_prot/test/deriving_inline.ml:461:19")
+                 "ppx/ppx_bin_prot/test/deriving_inline.ml:445:19")
               [] )
         ]
     in
@@ -563,11 +539,8 @@ end = struct
   let _ = bin_shape_t
 
   let bin_size_t__local =
-    (fun v ->
-       (fun _v ->
-         raise
-           (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t"))
-         v
+    (fun _v ->
+       raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t")
      : _ Bin_prot.Size.sizer__local)
   ;;
 
@@ -576,13 +549,8 @@ end = struct
   let _ = bin_size_t
 
   let bin_write_t__local =
-    (fun buf ~pos v ->
-       (fun _buf ~pos:_ _v ->
-         raise
-           (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t"))
-         buf
-         ~pos
-         v
+    (fun _buf ~pos:_ _v ->
+       raise (Bin_prot.Common.Empty_type "deriving_inline.ml.Empty_polymorphic_variant.t")
      : _ Bin_prot.Write.writer__local)
   ;;
 
@@ -1747,7 +1715,7 @@ end = struct
     let _group =
       Bin_prot.Shape.group
         (Bin_prot.Shape.Location.of_string
-           "ppx/ppx_bin_prot/test/deriving_inline.ml:1744:2")
+           "ppx/ppx_bin_prot/test/deriving_inline.ml:1712:2")
         [ ( Bin_prot.Shape.Tid.of_string "t"
           , [ Bin_prot.Shape.Vid.of_string "a" ]
           , Bin_prot.Shape.variant [ "A", [] ] )
@@ -1845,7 +1813,7 @@ end = struct
     let _group =
       Bin_prot.Shape.group
         (Bin_prot.Shape.Location.of_string
-           "ppx/ppx_bin_prot/test/deriving_inline.ml:1744:2")
+           "ppx/ppx_bin_prot/test/deriving_inline.ml:1712:2")
         [ ( Bin_prot.Shape.Tid.of_string "t"
           , [ Bin_prot.Shape.Vid.of_string "a" ]
           , Bin_prot.Shape.variant [ "A", [] ] )
@@ -1955,6 +1923,112 @@ end = struct
        ; shape = bin_shape_t bin_a.shape
        }
      : _ Bin_prot.Type_class.t -> _ Bin_prot.Type_class.t)
+  ;;
+
+  let _ = bin_t
+
+  [@@@end]
+end
+
+module All_immediate : sig
+  type t [@@deriving_inline bin_io, bin_io ~localize]
+
+  include sig
+    [@@@ocaml.warning "-32"]
+
+    include Bin_prot.Binable.S with type t := t
+    include Bin_prot.Binable.S__local with type t := t
+  end
+  [@@ocaml.doc "@inline"]
+
+  [@@@end]
+end = struct
+  type t =
+    | Foo
+    | Bar
+    | Baz
+  [@@deriving_inline bin_io ~localize ~hide_locations]
+
+  let _ = fun (_ : t) -> ()
+
+  let bin_shape_t =
+    let _group =
+      Bin_prot.Shape.group
+        (Bin_prot.Shape.Location.of_string "<hidden>")
+        [ ( Bin_prot.Shape.Tid.of_string "t"
+          , []
+          , Bin_prot.Shape.variant [ "Foo", []; "Bar", []; "Baz", [] ] )
+        ]
+    in
+    (Bin_prot.Shape.top_app _group (Bin_prot.Shape.Tid.of_string "t")) []
+  ;;
+
+  let _ = bin_shape_t
+
+  let bin_size_t__local : t Bin_prot.Size.sizer__local = function
+    | Foo | Bar | Baz -> 1
+  ;;
+
+  let _ = bin_size_t__local
+  let bin_size_t = (bin_size_t__local :> _ Bin_prot.Size.sizer)
+  let _ = bin_size_t
+
+  let bin_write_t__local : t Bin_prot.Write.writer__local =
+    fun buf ~pos v ->
+    Bin_prot.Write.bin_write_int_8bit
+      buf
+      ~pos
+      (match v with
+       | Foo -> 0
+       | Bar -> 1
+       | Baz -> 2)
+  ;;
+
+  let _ = bin_write_t__local
+  let bin_write_t = (bin_write_t__local :> _ Bin_prot.Write.writer)
+  let _ = bin_write_t
+
+  let bin_writer_t : t Bin_prot.Type_class.writer =
+    { size = bin_size_t; write = bin_write_t }
+  ;;
+
+  let _ = bin_writer_t
+
+  let __bin_read_t__ : t Bin_prot.Read.vtag_reader =
+    fun _buf ~pos_ref _vint ->
+    match
+      Bin_prot.Common.raise_variant_wrong_type
+        "deriving_inline.ml.All_immediate.t"
+        !pos_ref
+    with
+    | (_ : Bin_prot.Common.nothing) -> .
+  ;;
+
+  let _ = __bin_read_t__
+
+  let bin_read_t : t Bin_prot.Read.reader =
+    fun buf ~pos_ref ->
+    match Bin_prot.Read.bin_read_int_8bit buf ~pos_ref with
+    | 0 -> Foo
+    | 1 -> Bar
+    | 2 -> Baz
+    | _ ->
+      Bin_prot.Common.raise_read_error
+        (Bin_prot.Common.ReadError.Sum_tag "deriving_inline.ml.All_immediate.t")
+        !pos_ref
+  ;;
+
+  let _ = bin_read_t
+
+  let bin_reader_t : t Bin_prot.Type_class.reader =
+    { read = bin_read_t; vtag_read = __bin_read_t__ }
+  ;;
+
+  let _ = bin_reader_t
+
+  let bin_t =
+    ({ writer = bin_writer_t; reader = bin_reader_t; shape = bin_shape_t }
+     : _ Bin_prot.Type_class.t)
   ;;
 
   let _ = bin_t

@@ -1,7 +1,7 @@
 (library
  (name ppx_bin_prot)
  (public_name ppx_bin_prot)
- (kind ppx_deriver)
+ (kind ppx_rewriter)
  (ppx_runtime_libraries bin_prot)
  (libraries base bin_shape_expand ocaml-compiler-libs.common
    compiler-libs.common ppx_helpers ppxlib ppxlib_jane)
